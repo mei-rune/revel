@@ -75,7 +75,7 @@ func (engine *PongoEngine) Lookup(templateName string) revel.Template {
 }
 
 func init() {
-	revel.TemplateEngines[revel.GOHAML_TEMPLATE] = func(loader *revel.TemplateLoader) (revel.TemplateEngine, error) {
+	revel.TemplateEngines["pongo2"] = func(loader *revel.TemplateLoader) (revel.TemplateEngine, error) {
 		return &PongoEngine{
 			loader:                loader,
 			templateSetBybasePath: map[string]*pongo2.TemplateSet{},
