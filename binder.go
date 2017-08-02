@@ -436,6 +436,11 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 		}
 
 		key := paramName[len(name)+1 : len(paramName)-1]
+
+		if valueType.Kind() == reflect.Interface {
+			result.SetMapIndex(BindValue(key, keyType), reflect.ValueOf(values[0]))
+			continue
+		}
 		result.SetMapIndex(BindValue(key, keyType), BindValue(values[0], valueType))
 	}
 	return result

@@ -47,24 +47,55 @@ func (f *Field) FlashArray() []string {
 
 // Value returns the current value of this Field.
 func (f *Field) Value() interface{} {
-	pieces := strings.Split(f.Name, ".")
-	answer, ok := f.renderArgs[pieces[0]]
-	if !ok {
-		return ""
-	}
+	var fieldName string
 
-	val := reflect.ValueOf(answer)
-	for i := 1; i < len(pieces); i++ {
-		if val.Kind() == reflect.Ptr {
-			val = val.Elem()
+	var nextKey = f.Name
+	var val interface{} = f.renderArgs
+	for nextKey != "" {
+		switch nextKey[0] {
+		case '[':
+			idx := strings.IndexRune(nextKey, ']')
+			if idx < 0 {
+				fieldName = nextKey[1:]
+				nextKey = ""
+			} else {
+				fieldName = nextKey[1:idx]
+				nextKey = nextKey[idx+1:]
+			}
+		case '.':
+			nextKey = nextKey[1:]
+			fallthrough
+		default:
+			idx := strings.IndexAny(nextKey, ".[")
+			if idx < 0 {
+				fieldName = nextKey
+				nextKey = ""
+			} else {
+				fieldName = nextKey[:idx]
+				nextKey = nextKey[idx:]
+			}
 		}
-		val = val.FieldByName(pieces[i])
-		if !val.IsValid() {
+
+		if m, ok := val.(map[string]interface{}); ok {
+			val = m[fieldName]
+			if val == nil {
+				return nil
+			}
+			continue
+		}
+
+		rVal := reflect.ValueOf(val)
+		if rVal.Kind() == reflect.Ptr {
+			rVal = rVal.Elem()
+		}
+		rVal = rVal.FieldByName(fieldName)
+		if !rVal.IsValid() {
 			return ""
 		}
+		val = rVal.Interface()
 	}
 
-	return val.Interface()
+	return val
 }
 
 // ErrorClass returns ErrorCSSClass if this field has a validation error, else empty string.
