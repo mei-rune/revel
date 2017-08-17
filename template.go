@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 // ErrorCSSClass httml CSS error class name
@@ -32,7 +34,9 @@ type TemplateLoader struct {
 	// Map from template name to the path from whence it was loaded.
 	TemplatePaths map[string]string
 	// A map of looked up template results
-	TemplateMap   map[string]Template
+	TemplateMap atomic.Value
+	// Lock to prevent concurrent map writes
+	templateMutex sync.Mutex
 }
 
 type Template interface {
@@ -79,8 +83,7 @@ func (loader *TemplateLoader) Refresh() (err *Error) {
 		}
 		fireEvent(TEMPLATE_REFRESH_COMPLETED, nil)
 		// Reset the TemplateMap, we don't prepopulate the map because
-		loader.TemplateMap = map[string]Template{}
-
+		loader.TemplateMap.Store(map[string]Template{})
 	}()
 	// Resort the paths, make sure the revel path is the last path,
 	// so anything can override it
@@ -205,7 +208,7 @@ func (loader *TemplateLoader) findAndAddTemplate(path, fullSrcDir, basePath stri
 	}
 	// Parse template file and replace the "_RNS_|" in the template with the module name
 	// allow for namespaces to be renamed "_RNS_(.*?)|"
-	if module := ModuleFromPath(path, false);module != nil {
+	if module := ModuleFromPath(path, false); module != nil {
 		fileBytes = namespaceReplace(fileBytes, module)
 	}
 
@@ -304,6 +307,7 @@ func ParseTemplateError(err error) (templateName string, line int, description s
 func (loader *TemplateLoader) Template(name string) (tmpl Template, err error) {
 	return loader.TemplateLang(name, "")
 }
+
 // Template returns the Template with the given name.  The name is the template's path
 // relative to a template loader root.
 //
@@ -313,7 +317,7 @@ func (loader *TemplateLoader) TemplateLang(name, lang string) (tmpl Template, er
 	if loader.compileError != nil {
 		return nil, loader.compileError
 	}
-// Attempt to load a localized template first.
+	// Attempt to load a localized template first.
 	if lang != "" {
 		// Look up and return the template.
 		tmpl = loader.templateLoad(name + "." + lang)
@@ -330,13 +334,22 @@ func (loader *TemplateLoader) TemplateLang(name, lang string) (tmpl Template, er
 	return
 }
 func (loader *TemplateLoader) templateLoad(name string) (tmpl Template) {
-	if t,found := loader.TemplateMap[name];!found && t != nil {
+	templateMap := loader.TemplateMap.Load().(map[string]Template)
+	if t, found := templateMap[name]; !found && t != nil {
 		tmpl = t
 	} else {
 		// Look up and return the template.
 		for _, engine := range loader.templatesAndEngineList {
 			if tmpl = engine.Lookup(name); tmpl != nil {
-				loader.TemplateMap[name] = tmpl
+				loader.templateMutex.Lock()
+				defer loader.templateMutex.Unlock()
+				newTemplateMap := map[string]Template{}
+				templateMap = loader.TemplateMap.Load().(map[string]Template)
+				for k, v := range templateMap {
+					newTemplateMap[k] = v
+				}
+				newTemplateMap[name] = tmpl
+				loader.TemplateMap.Store(newTemplateMap)
 				break
 			}
 		}
@@ -361,4 +374,3 @@ func (i *TemplateView) Content() (content []string) {
 func NewBaseTemplate(templateName, filePath, basePath string, fileBytes []byte) *TemplateView {
 	return &TemplateView{TemplateName: templateName, FilePath: filePath, FileBytes: fileBytes, BasePath: basePath}
 }
-
