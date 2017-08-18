@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 // ErrorCSSClass httml CSS error class name
@@ -32,7 +34,9 @@ type TemplateLoader struct {
 	// Map from template name to the path from whence it was loaded.
 	TemplatePaths map[string]string
 	// A map of looked up template results
-	TemplateMap   map[string]Template
+	templateMap atomic.Value
+	// Lock to prevent concurrent map writes
+	templateMutex sync.RWMutex
 }
 
 type Template interface {
@@ -59,10 +63,10 @@ func NewTemplateLoader(paths []string) *TemplateLoader {
 // Refresh method scans the views directory and parses all templates as Go Templates.
 // If a template fails to parse, the error is set on the loader.
 // (It's awkward to refresh a single Go Template)
-// Refresh method scans the views directory and parses all templates as Go Templates.
-// If a template fails to parse, the error is set on the loader.
-// (It's awkward to refresh a single Go Template)
 func (loader *TemplateLoader) Refresh() (err *Error) {
+	loader.templateMutex.Lock()
+	defer loader.templateMutex.Unlock()
+
 	TRACE.Printf("Refreshing templates from %s", loader.paths)
 	if len(loader.templatesAndEngineList) == 0 {
 		if err = loader.InitializeEngines(GO_TEMPLATE); err != nil {
@@ -78,10 +82,11 @@ func (loader *TemplateLoader) Refresh() (err *Error) {
 			engine.Event(TEMPLATE_REFRESH_COMPLETED, nil)
 		}
 		fireEvent(TEMPLATE_REFRESH_COMPLETED, nil)
-		// Reset the TemplateMap, we don't prepopulate the map because
-		loader.TemplateMap = map[string]Template{}
 
+		// Reset the TemplateMap
+		loader.templateMap.Store(map[string]Template{})
 	}()
+
 	// Resort the paths, make sure the revel path is the last path,
 	// so anything can override it
 	revelTemplatePath := filepath.Join(RevelPath, "templates")
@@ -205,7 +210,7 @@ func (loader *TemplateLoader) findAndAddTemplate(path, fullSrcDir, basePath stri
 	}
 	// Parse template file and replace the "_RNS_|" in the template with the module name
 	// allow for namespaces to be renamed "_RNS_(.*?)|"
-	if module := ModuleFromPath(path, false);module != nil {
+	if module := ModuleFromPath(path, false); module != nil {
 		fileBytes = namespaceReplace(fileBytes, module)
 	}
 
@@ -304,6 +309,7 @@ func ParseTemplateError(err error) (templateName string, line int, description s
 func (loader *TemplateLoader) Template(name string) (tmpl Template, err error) {
 	return loader.TemplateLang(name, "")
 }
+
 // Template returns the Template with the given name.  The name is the template's path
 // relative to a template loader root.
 //
@@ -313,34 +319,82 @@ func (loader *TemplateLoader) TemplateLang(name, lang string) (tmpl Template, er
 	if loader.compileError != nil {
 		return nil, loader.compileError
 	}
-// Attempt to load a localized template first.
-	if lang != "" {
-		// Look up and return the template.
-		tmpl = loader.templateLoad(name + "." + lang)
-	}
-	// Return non localized version
-	if tmpl == nil {
-		tmpl = loader.templateLoad(name)
-	}
 
-	if tmpl == nil && err == nil {
+	// Fetch the template from the map
+	tmpl = loader.templateLoad(name, lang)
+
+	if tmpl == nil {
 		err = fmt.Errorf("Template %s not found.", name)
 	}
 
 	return
 }
-func (loader *TemplateLoader) templateLoad(name string) (tmpl Template) {
-	if t,found := loader.TemplateMap[name];!found && t != nil {
-		tmpl = t
-	} else {
+
+// Load and also updates map if name is not found (to speed up next lookup)
+func (loader *TemplateLoader) templateLoad(name, lang string) (tmpl Template) {
+	templateMap := loader.templateMap.Load().(map[string]Template)
+	langName := name
+	if lang != "" {
 		// Look up and return the template.
-		for _, engine := range loader.templatesAndEngineList {
-			if tmpl = engine.Lookup(name); tmpl != nil {
-				loader.TemplateMap[name] = tmpl
-				break
+		langName = name + "." + lang
+	} else {
+		name = ""
+	}
+
+	t, found := templateMap[langName]
+	if found {
+		tmpl = t
+		return
+	}
+
+	// Check to see if the altName exists
+	if name != "" {
+		tmpl, found = templateMap[name]
+	}
+
+	if !found {
+		func() {
+			// Synchronize access while template map may be populated to prevent
+			// concurrent access
+			loader.templateMutex.RLock()
+			defer loader.templateMutex.RUnlock()
+
+			// Neither name is found
+			// Look up and return the template.
+			for _, engine := range loader.templatesAndEngineList {
+				if tmpl = engine.Lookup(langName); tmpl != nil {
+					found = true
+					break
+				}
+				if tmpl = engine.Lookup(name); tmpl != nil {
+					found = true
+					break
+				}
+			}
+		}()
+	}
+	// If we found anything store it in the map, we need to copy so we do not
+	// run into concurrency issues
+	if found {
+		loader.templateMutex.Lock()
+		defer loader.templateMutex.Unlock()
+
+		newTemplateMap := map[string]Template{}
+		// In case another thread has loaded the map, reload the atomic value
+		templateMap = loader.templateMap.Load().(map[string]Template)
+		for k, v := range templateMap {
+			newTemplateMap[k] = v
+		}
+		newTemplateMap[langName] = tmpl
+		if name != "" {
+			if _, found := newTemplateMap[name]; !found {
+				newTemplateMap[name] = tmpl
 			}
 		}
+		// Set the atomic value
+		loader.templateMap.Store(newTemplateMap)
 	}
+
 	return
 }
 
@@ -361,4 +415,3 @@ func (i *TemplateView) Content() (content []string) {
 func NewBaseTemplate(templateName, filePath, basePath string, fileBytes []byte) *TemplateView {
 	return &TemplateView{TemplateName: templateName, FilePath: filePath, FileBytes: fileBytes, BasePath: basePath}
 }
-
