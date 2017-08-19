@@ -434,7 +434,6 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 		if !strings.HasPrefix(paramName, name+"[") || paramName[len(paramName)-1] != ']' {
 			continue
 		}
-
 		key := paramName[len(name)+1 : len(paramName)-1]
 
 		if valueType.Kind() == reflect.Interface {
