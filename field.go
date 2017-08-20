@@ -45,6 +45,30 @@ func (f *Field) FlashArray() []string {
 	return strings.Split(v, ",")
 }
 
+func readNext(nextKey string) (string, string) {
+	switch nextKey[0] {
+	case '[':
+		idx := strings.IndexRune(nextKey, ']')
+		if idx < 0 {
+			return nextKey[1:], ""
+		} else {
+			return nextKey[1:idx], nextKey[idx+1:]
+		}
+	case '.':
+		nextKey = nextKey[1:]
+		fallthrough
+	default:
+		idx := strings.IndexAny(nextKey, ".[")
+		if idx < 0 {
+			return nextKey, ""
+		} else if nextKey[idx] == '.' {
+			return nextKey[:idx], nextKey[idx+1:]
+		} else {
+			return nextKey[:idx], nextKey[idx:]
+		}
+	}
+}
+
 // Value returns the current value of this Field.
 func (f *Field) Value() interface{} {
 	var fieldName string
@@ -52,29 +76,7 @@ func (f *Field) Value() interface{} {
 	var nextKey = f.Name
 	var val interface{} = f.renderArgs
 	for nextKey != "" {
-		switch nextKey[0] {
-		case '[':
-			idx := strings.IndexRune(nextKey, ']')
-			if idx < 0 {
-				fieldName = nextKey[1:]
-				nextKey = ""
-			} else {
-				fieldName = nextKey[1:idx]
-				nextKey = nextKey[idx+1:]
-			}
-		case '.':
-			nextKey = nextKey[1:]
-			fallthrough
-		default:
-			idx := strings.IndexAny(nextKey, ".[")
-			if idx < 0 {
-				fieldName = nextKey
-				nextKey = ""
-			} else {
-				fieldName = nextKey[:idx]
-				nextKey = nextKey[idx:]
-			}
-		}
+		fieldName, nextKey = readNext(nextKey)
 
 		if m, ok := val.(map[string]interface{}); ok {
 			val = m[fieldName]
@@ -85,19 +87,19 @@ func (f *Field) Value() interface{} {
 		}
 
 		rVal := reflect.ValueOf(val)
-		if kind := rVal.Kind(); kind == reflect.Ptr {
-			rVal = rVal.Elem()
-		} else if kind == reflect.Map {
+		if kind := rVal.Kind(); kind == reflect.Map {
 			rFieldName := reflect.ValueOf(fieldName)
 			val = rVal.MapIndex(rFieldName).Interface()
 			if val == nil {
 				return nil
 			}
 			continue
+		} else if kind == reflect.Ptr {
+			rVal = rVal.Elem()
 		}
 		rVal = rVal.FieldByName(fieldName)
 		if !rVal.IsValid() {
-			return ""
+			return nil
 		}
 		val = rVal.Interface()
 	}
