@@ -69,8 +69,16 @@ func (c *Controller) SetCookie(cookie *http.Cookie) {
 	http.SetCookie(c.Response.Out, cookie)
 }
 
+type ErrorCoder interface {
+	HTTPCode() int
+}
+
 func (c *Controller) RenderError(err error) Result {
-	c.setStatusIfNil(http.StatusInternalServerError)
+	if coder, ok := err.(ErrorCoder); ok {
+		c.setStatusIfNil(coder.HTTPCode())
+	} else {
+		c.setStatusIfNil(http.StatusInternalServerError)
+	}
 
 	return ErrorResult{c.ViewArgs, err}
 }
@@ -290,11 +298,12 @@ func (c *Controller) SetAction(controllerName, methodName string) error {
 
 	return c.SetTypeAction(controllerName, methodName, nil)
 }
+
 // SetAction sets the assigns the Controller type, sets the action and initializes the controller
 func (c *Controller) SetTypeAction(controllerName, methodName string, typeOfController *ControllerType) error {
 
 	// Look up the controller and method types.
-	if typeOfController== nil {
+	if typeOfController == nil {
 		if c.Type = ControllerTypeByName(controllerName, anyModule); c.Type == nil {
 			return errors.New("revel/controller: failed to find controller " + controllerName)
 		}
@@ -325,7 +334,7 @@ func ControllerTypeByName(controllerName string, moduleSource *Module) (c *Contr
 			// Search for the controller by name
 			for _, cType := range controllers {
 				testControllerName := strings.ToLower(cType.Type.Name())
-				if testControllerName == strings.ToLower(controllerName) && (cType.ModuleSource == moduleSource || moduleSource == anyModule)  {
+				if testControllerName == strings.ToLower(controllerName) && (cType.ModuleSource == moduleSource || moduleSource == anyModule) {
 					WARN.Printf("Matched empty namespace controller for %s to this %s", controllerName, cType.ModuleSource.Name)
 					c = cType
 					found = true
@@ -428,12 +437,12 @@ type MethodArg struct {
 
 // Adds the controller to the controllers map using its namespace, also adds it to the module list of controllers.
 // If the controller is in the main application it is added without its namespace as well.
-func AddControllerType(moduleSource *Module,controllerType reflect.Type,methods []*MethodType) (newControllerType *ControllerType) {
-	if moduleSource==nil {
+func AddControllerType(moduleSource *Module, controllerType reflect.Type, methods []*MethodType) (newControllerType *ControllerType) {
+	if moduleSource == nil {
 		moduleSource = appModule
 	}
 
-	newControllerType = &ControllerType{ModuleSource:moduleSource,Type:controllerType,Methods:methods,ControllerIndexes:findControllers(controllerType)}
+	newControllerType = &ControllerType{ModuleSource: moduleSource, Type: controllerType, Methods: methods, ControllerIndexes: findControllers(controllerType)}
 	newControllerType.Namespace = moduleSource.Namespace()
 	controllerName := newControllerType.Name()
 
@@ -446,12 +455,13 @@ func AddControllerType(moduleSource *Module,controllerType reflect.Type,methods 
 			controllers[newControllerType.ShortName()] = newControllerType
 		}
 	} else {
-		ERROR.Printf("Error, attempt to register duplicate controller as %s",controllerName)
+		ERROR.Printf("Error, attempt to register duplicate controller as %s", controllerName)
 	}
 	TRACE.Printf("Registered controller: %s", controllerName)
 
 	return
 }
+
 // Method searches for a given exported method (case insensitive)
 func (ct *ControllerType) Method(name string) *MethodType {
 	lowerName := strings.ToLower(name)
@@ -464,12 +474,12 @@ func (ct *ControllerType) Method(name string) *MethodType {
 }
 
 // The controller name with the namespace
-func (ct *ControllerType) Name() (string) {
+func (ct *ControllerType) Name() string {
 	return ct.Namespace + ct.ShortName()
 }
 
 // The controller name without the namespace
-func (ct *ControllerType) ShortName() (string) {
+func (ct *ControllerType) ShortName() string {
 	return strings.ToLower(ct.Type.Name())
 }
 
@@ -490,7 +500,7 @@ func RegisterController(c interface{}, methods []*MethodType) {
 	// Fetch module for controller, if none found controller must be part of the app
 	controllerModule := ModuleFromPath(elem.PkgPath(), true)
 
-	controllerType := AddControllerType(controllerModule,elem,methods)
+	controllerType := AddControllerType(controllerModule, elem, methods)
 
 	TRACE.Printf("Registered controller: %s", controllerType.Name())
 }
