@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ type Result interface {
 // If RunMode is "dev", this results in a friendly error page.
 type ErrorResult struct {
 	ViewArgs map[string]interface{}
-	Error      error
+	Error    error
 }
 
 func (r ErrorResult) Apply(req *Request, resp *Response) {
@@ -129,7 +130,7 @@ func (r PlaintextErrorResult) Apply(req *Request, resp *Response) {
 // RenderTemplateResult action methods returns this result to request
 // a template be rendered.
 type RenderTemplateResult struct {
-	Template   Template
+	Template Template
 	ViewArgs map[string]interface{}
 }
 
@@ -138,8 +139,8 @@ func (r *RenderTemplateResult) Apply(req *Request, resp *Response) {
 	defer func() {
 		if err := recover(); err != nil {
 			ERROR.Println(err)
-			PlaintextErrorResult{fmt.Errorf("Template Execution Panic in %s:\n%s",
-				r.Template.Name(), err)}.Apply(req, resp)
+			PlaintextErrorResult{fmt.Errorf("Template Execution Panic in %s:\n%s\n%s",
+				r.Template.Name(), err, string(debug.Stack()))}.Apply(req, resp)
 		}
 	}()
 
