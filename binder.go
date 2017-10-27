@@ -74,6 +74,7 @@ var (
 
 	DateFormat     string
 	DateTimeFormat string
+	TimeZone       = time.Local
 
 	IntBinder = Binder{
 		Bind: ValueBinder(func(val string, typ reflect.Type) reflect.Value {
@@ -169,7 +170,7 @@ var (
 	TimeBinder = Binder{
 		Bind: ValueBinder(func(val string, typ reflect.Type) reflect.Value {
 			for _, f := range TimeFormats {
-				if r, err := time.Parse(f, val); err == nil {
+				if r, err := time.ParseInLocation(f, val, TimeZone); err == nil {
 					return reflect.ValueOf(r)
 				}
 			}
