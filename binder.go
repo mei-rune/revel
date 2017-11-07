@@ -74,7 +74,7 @@ var (
 
 	DateFormat     string
 	DateTimeFormat string
-	TimeZone       = time.Local
+	TimeZone       = time.UTC
 
 	IntBinder = Binder{
 		Bind: ValueBinder(func(val string, typ reflect.Type) reflect.Value {
@@ -435,12 +435,18 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 		if !strings.HasPrefix(paramName, name+"[") || paramName[len(paramName)-1] != ']' {
 			continue
 		}
-		key := paramName[len(name)+1 : len(paramName)-1]
 
 		if valueType.Kind() == reflect.Interface {
-			result.SetMapIndex(BindValue(key, keyType), reflect.ValueOf(values[0]))
+			if strings.HasSuffix(paramName, "][]") {
+				key := paramName[len(name)+1 : len(paramName)-3]
+				result.SetMapIndex(BindValue(key, keyType), reflect.ValueOf(values))
+			} else {
+				key := paramName[len(name)+1 : len(paramName)-1]
+				result.SetMapIndex(BindValue(key, keyType), reflect.ValueOf(values[0]))
+			}
 			continue
 		}
+		key := paramName[len(name)+1 : len(paramName)-1]
 		result.SetMapIndex(BindValue(key, keyType), BindValue(values[0], valueType))
 	}
 	return result
