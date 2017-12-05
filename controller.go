@@ -86,7 +86,11 @@ func (c *Controller) Destroy() {
 		// Return this instance to the pool
 		appController := c.AppController
 		c.AppController = nil
-		cachedControllerMap[c.Name].Push(appController)
+
+		stack := getCachedControllerStack(c.Name, nil)
+		if stack != nil {
+			stack.Push(appController)
+		}
 		c.AppController = nil
 	}
 
@@ -209,8 +213,8 @@ func (c *Controller) RenderTemplate(templatePath string) Result {
 }
 
 // TemplateOutput returns the result of the template rendered using the controllers ViewArgs.
-func (c *Controller) TemplateOutput(templatePath string) (data []byte,err error)  {
-	return TemplateOutputArgs(templatePath,c.ViewArgs)
+func (c *Controller) TemplateOutput(templatePath string) (data []byte, err error) {
+	return TemplateOutputArgs(templatePath, c.ViewArgs)
 }
 
 // RenderJSON uses encoding/json.Marshal to return JSON to the client.
@@ -347,7 +351,7 @@ func (c *Controller) Redirect(val interface{}, args ...interface{}) Result {
 func (c *Controller) Stats() map[string]interface{} {
 	result := CurrentEngine.Stats()
 	result["revel-controllers"] = controllerStack.String()
-	for key, appStack := range cachedControllerMap {
+	for key, appStack := range getCachedControllerMap() {
 		result["app-"+key] = appStack.String()
 	}
 	return result
@@ -393,18 +397,13 @@ func (c *Controller) SetTypeAction(controllerName, methodName string, typeOfCont
 		c.Log = c.Log.New("action", c.Action, "namespace", c.Type.Namespace)
 	}
 
-	if _, ok := cachedControllerMap[c.Name]; !ok {
-		// Create a new stack for this controller
-		localType := c.Type.Type
-		cachedControllerMap[c.Name] = NewStackLock(
-			cachedControllerStackSize,
-			cachedControllerStackMaxSize,
-			func() interface{} {
-				return reflect.New(localType).Interface()
-			})
-	}
+	// Create a new stack for this controller
+	localType := c.Type.Type
+	stack := getCachedControllerStack(c.Name, func() interface{} {
+		return reflect.New(localType).Interface()
+	})
 	// Instantiate the controller.
-	c.AppController = cachedControllerMap[c.Name].Pop()
+	c.AppController = stack.Pop()
 	c.setAppControllerFields()
 
 	return nil

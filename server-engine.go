@@ -9,6 +9,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -115,11 +117,66 @@ type ServerEngineEmpty struct {
 var (
 	// The simple stacks for response and controllers are a linked list
 	// of reused objects.
-	controllerStack              *SimpleLockStack
-	cachedControllerMap          = map[string]*SimpleLockStack{}
+	controllerStack *SimpleLockStack
+
+	cachedControllerMapLock      sync.Mutex
+	cachedControllerMapValue     atomic.Value
 	cachedControllerStackSize    = 10
 	cachedControllerStackMaxSize = 10
 )
+
+func getCachedControllerMap() map[string]*SimpleLockStack {
+	o := cachedControllerMapValue.Load()
+	if o != nil {
+		cachedControllerMap, _ := o.(map[string]*SimpleLockStack)
+		return cachedControllerMap
+	}
+	return nil
+}
+
+func getCachedControllerStack(name string, creator func() interface{}) *SimpleLockStack {
+	var cachedControllerMap map[string]*SimpleLockStack
+	o := cachedControllerMapValue.Load()
+	if o != nil {
+		cachedControllerMap, _ = o.(map[string]*SimpleLockStack)
+		if cachedControllerMap != nil {
+			stack := cachedControllerMap[name]
+			if stack != nil {
+				return stack
+			}
+		}
+	}
+
+	if creator == nil {
+		return nil
+	}
+
+	cachedControllerMapLock.Lock()
+	defer cachedControllerMapLock.Unlock()
+
+	// double check
+	if o = cachedControllerMapValue.Load(); o != nil {
+		cachedControllerMap, _ = o.(map[string]*SimpleLockStack)
+		if cachedControllerMap != nil {
+			stack := cachedControllerMap[name]
+			if stack != nil {
+				return stack
+			}
+		}
+	}
+
+	copyed := map[string]*SimpleLockStack{}
+	for key, value := range cachedControllerMap {
+		copyed[key] = value
+	}
+	stack := NewStackLock(
+		cachedControllerStackSize,
+		cachedControllerStackMaxSize,
+		creator)
+	copyed[name] = stack
+	cachedControllerMapValue.Store(copyed)
+	return stack
+}
 
 func handleInternal(ctx ServerContext) {
 	start := time.Now()
