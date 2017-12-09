@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/websocket"
 	"io"
 	"mime/multipart"
 	"net/url"
 	"strconv"
+
+	"golang.org/x/net/websocket"
 )
 
 // Register the GoHttpServer engine
@@ -38,7 +39,6 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 		func() interface{} { return &GoMultipartForm{} })
 	g.ServerInit = init
 	g.Server = &http.Server{
-		Addr: init.Address,
 		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			g.Handle(writer, request)
 		}),
@@ -46,11 +46,12 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 		WriteTimeout: time.Duration(Config.IntDefault("http.timeout.write", 0)) * time.Second,
 	}
 	// Server already initialized
-
 }
 
 // Handler is assigned in the Init
 func (g *GoHttpServer) Start() {
+	g.Server.Addr = g.ServerInit.Address
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)
@@ -70,7 +71,6 @@ func (g *GoHttpServer) Start() {
 		}
 		serverLogger.Fatal("Failed to serve:", "error", g.Server.Serve(listener))
 	}
-
 }
 
 func (g *GoHttpServer) Handle(w http.ResponseWriter, r *http.Request) {
