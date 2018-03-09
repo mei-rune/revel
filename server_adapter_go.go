@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/websocket"
 	"io"
 	"mime/multipart"
 	"net/url"
 	"strconv"
+
+	"golang.org/x/net/websocket"
 )
 
 // Register the GoHttpServer engine
@@ -38,7 +39,6 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 		func() interface{} { return &GoMultipartForm{} })
 	g.ServerInit = init
 	g.Server = &http.Server{
-		Addr: init.Address,
 		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			g.Handle(writer, request)
 		}),
@@ -46,11 +46,12 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 		WriteTimeout: time.Duration(Config.IntDefault("http.timeout.write", 0)) * time.Second,
 	}
 	// Server already initialized
-
 }
 
 // Handler is assigned in the Init
 func (g *GoHttpServer) Start() {
+	g.Server.Addr = g.ServerInit.Address
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)
@@ -70,7 +71,6 @@ func (g *GoHttpServer) Start() {
 		}
 		serverLogger.Fatal("Failed to serve:", "error", g.Server.Serve(listener))
 	}
-
 }
 
 func (g *GoHttpServer) Handle(w http.ResponseWriter, r *http.Request) {
@@ -188,6 +188,7 @@ func (c *GoContext) Destroy() {
 	c.Request.Destroy()
 	if c.WebSocket != nil {
 		c.WebSocket.Destroy()
+		c.WebSocket = nil
 	}
 }
 func (r *GoRequest) Get(key int) (value interface{}, err error) {
@@ -299,7 +300,6 @@ func (r *GoResponse) SetWriter(writer io.Writer) {
 	r.Writer = writer
 }
 func (r *GoResponse) WriteStream(name string, contentlen int64, modtime time.Time, reader io.Reader) error {
-
 	// Check to see if the output stream is modified, if not send it using the
 	// Native writer
 	written := false
@@ -328,7 +328,11 @@ func (r *GoResponse) WriteStream(name string, contentlen int64, modtime time.Tim
 		}
 
 		if contentlen != -1 {
-			r.Original.Header().Set("Content-Length", strconv.FormatInt(contentlen, 10))
+			header := ServerHeader(r.Goheader)
+			if writer,found := r.Writer.(*CompressResponseWriter);found {
+				header = ServerHeader(writer.Header)
+			}
+			header.Set("Content-Length", strconv.FormatInt(contentlen, 10))
 		}
 		if _, err := io.Copy(r.Writer, reader); err != nil {
 			r.Original.WriteHeader(http.StatusInternalServerError)
