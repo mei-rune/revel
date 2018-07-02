@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/revel/config"
+	"github.com/uber-go/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -23,23 +24,23 @@ var (
 	}
 )
 
-// func GetLogger(name string, logger MultiLogger) (l *log.Logger) {
-// 	switch name {
-// 	case "trace": // TODO trace is deprecated, replaced by debug
-// 		l = logger.ToStdLogger(zap.DebugLevel)
-// 	case "debug":
-// 		l = logger.ToStdLogger(zap.DebugLevel)
-// 	case "info":
-// 		l = logger.ToStdLogger(zap.InfoLevel)
-// 	case "warn":
-// 		l = logger.ToStdLogger(zap.WarnLevel)
-// 	case "error":
-// 		l = logger.ToStdLogger(zap.ErrorLevel)
-// 	case "request":
-// 		l = logger.ToStdLogger(zap.InfoLevel)
-// 	}
-// 	return l
-// }
+func GetLogger(name string, logger MultiLogger) (l *log.Logger) {
+	switch name {
+	case "trace": // TODO trace is deprecated, replaced by debug
+		l = toStdLogger(logger, zap.DebugLevel)
+	case "debug":
+		l = toStdLogger(logger, zap.DebugLevel)
+	case "info":
+		l = toStdLogger(logger, zap.InfoLevel)
+	case "warn":
+		l = toStdLogger(logger, zap.WarnLevel)
+	case "error":
+		l = toStdLogger(logger, zap.ErrorLevel)
+	case "request":
+		l = toStdLogger(logger, zap.InfoLevel)
+	}
+	return l
+}
 
 // Get all handlers based on the Config (if available)
 func InitializeFromConfig(basePath string, config *config.Context) (c *Builder) {

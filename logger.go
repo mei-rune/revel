@@ -1,10 +1,10 @@
 package revel
 
 import (
-	"github.com/revel/revel/logger"
-	"github.com/revel/log15"
 	"log"
 	"os"
+
+	"github.com/revel/revel/logger"
 )
 
 //Logger
@@ -15,14 +15,10 @@ var (
 	// This logger is the application logger, use this for your application log messages - ie jobs and startup,
 	// Use Controller.Log for Controller logging
 	// The requests are logged to this logger with the context of `section:requestlog`
-	AppLog = RootLog.New("module","app")
+	AppLog = RootLog.New("module", "app")
 	// This is the logger revel writes to, added log messages will have a context of module:revel in them
 	// It is based off of `RootLog`
 	RevelLog = RootLog.New("module", "revel")
-
-	// This is the handler for the AppLog, it is stored so that if the AppLog is changed it can be assigned to the
-	// new AppLog
-	appLogHandler *logger.CompositeMultiHandler
 
 	// This oldLog is the revel logger, historical for revel, The application should use the AppLog or the Controller.oldLog
 	// DEPRECATED
@@ -40,12 +36,9 @@ var (
 )
 
 func init() {
-
-	RootLog.SetHandler(logger.LevelHandler(logger.LogLevel(log15.LvlDebug), logger.StreamHandler(os.Stdout, logger.TerminalFormatHandler(false, true))))
-	initLoggers()
 	OnAppStart(initLoggers, -1)
-
 }
+
 func initLoggers() {
 	appHandle := logger.InitializeFromConfig(BasePath, Config)
 
