@@ -187,7 +187,7 @@ func (r *RenderTemplateResult) ToBytes() (b *bytes.Buffer, err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr)
+			err = fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr, debug.Stack())
 		}
 	}()
 	b = &bytes.Buffer{}
@@ -204,7 +204,7 @@ func (r *RenderTemplateResult) renderOutput(wr io.Writer) (err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr)
+			err = fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr, debug.Stack())
 		}
 	}()
 	err = r.Template.Render(wr, r.ViewArgs)
