@@ -187,9 +187,10 @@ func (r *RenderTemplateResult) ToBytes() (b *bytes.Buffer, err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr, debug.Stack())
+			err = r.genTemplateError(fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr), debug.Stack())
 		}
 	}()
+
 	b = &bytes.Buffer{}
 	if err = r.renderOutput(b); err == nil {
 		if Config.BoolDefault("results.trim.html", false) {
@@ -199,12 +200,35 @@ func (r *RenderTemplateResult) ToBytes() (b *bytes.Buffer, err error) {
 	return
 }
 
+func (r *RenderTemplateResult) genTemplateError(err error, stack []byte) *Error {
+	var templateContent []string
+	templateName, line, description := ParseTemplateError(err)
+	if templateName == "" {
+		templateName = r.Template.Name()
+		templateContent = r.Template.Content()
+	} else {
+		lang, _ := r.ViewArgs[CurrentLocaleViewArg].(string)
+		if tmpl, e := MainTemplateLoader.TemplateLang(templateName, lang); e == nil {
+			templateContent = tmpl.Content()
+		}
+	}
+
+	return &Error{
+		Title:       "Template Execution Error",
+		Path:        templateName,
+		Description: description,
+		Line:        line,
+		SourceLines: templateContent,
+		Stack:       string(stack),
+	}
+}
+
 // Output the template to the writer, catch any panics and return as an error
 func (r *RenderTemplateResult) renderOutput(wr io.Writer) (err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr, debug.Stack())
+			err = r.genTemplateError(fmt.Errorf("Template Execution Panic in %s:\n%s\n%s", r.Template.Name(), rerr), debug.Stack())
 		}
 	}()
 	err = r.Template.Render(wr, r.ViewArgs)
@@ -261,24 +285,11 @@ func (r *RenderTemplateResult) compressHtml(b *bytes.Buffer) (b2 *bytes.Buffer) 
 
 // Render the error in the response
 func (r *RenderTemplateResult) renderError(err error, req *Request, resp *Response) {
-	var templateContent []string
-	templateName, line, description := ParseTemplateError(err)
-	if templateName == "" {
-		templateName = r.Template.Name()
-		templateContent = r.Template.Content()
-	} else {
-		lang, _ := r.ViewArgs[CurrentLocaleViewArg].(string)
-		if tmpl, err := MainTemplateLoader.TemplateLang(templateName, lang); err == nil {
-			templateContent = tmpl.Content()
-		}
+	compileError, ok := err.(*Error)
+	if !ok {
+		compileError = r.genTemplateError(err, nil)
 	}
-	compileError := &Error{
-		Title:       "Template Execution Error",
-		Path:        templateName,
-		Description: description,
-		Line:        line,
-		SourceLines: templateContent,
-	}
+
 	resp.Status = 500
 	resultsLog.Errorf("render: Template Execution Error (in %s): %s", compileError.Path, compileError.Description)
 	ErrorResult{r.ViewArgs, compileError}.Apply(req, resp)
