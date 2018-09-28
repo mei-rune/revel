@@ -7,6 +7,7 @@ package revel
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -140,7 +141,11 @@ var (
 			return reflect.ValueOf(val)
 		}),
 		Unbind: func(output map[string]string, name string, val interface{}) {
-			output[name] = val.(string)
+			if u, ok := val.(template.URL); ok {
+				output[name] = string(u)
+			} else {
+				output[name] = val.(string)
+			}
 		},
 	}
 
