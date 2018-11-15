@@ -5,9 +5,9 @@
 package revel
 
 import (
+	"fmt"
 	"net/http"
 	"runtime/debug"
-	"fmt"
 )
 
 // PanicFilter wraps the action invocation in a protective defer blanket that
@@ -30,7 +30,7 @@ func handleInvocationPanic(c *Controller, err interface{}) {
 		fmt.Println(err)
 		fmt.Println(error.Stack)
 	}
-	if error == nil && DevMode {
+	if DevMode {
 		// Only show the sensitive information in the debug stack trace in development mode, not production
 		c.Response.SetStatus(http.StatusInternalServerError)
 		_, _ = c.Response.GetWriter().Write(debug.Stack())
