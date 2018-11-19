@@ -24,20 +24,6 @@ const (
 	httpStatusCode = "404"
 )
 
-type ActionURL string
-
-func (u ActionURL) String() string {
-	return string(u)
-}
-
-func (u ActionURL) Param(key, value string) string {
-	s := string(u)
-	if strings.Contains(s, "?") {
-		return s + "&" + key + "=" + url.QueryEscape(value)
-	}
-	return s + "?" + key + "=" + url.QueryEscape(value)
-}
-
 type Route struct {
 	ModuleSource        *Module         // Module name of route
 	Method              string          // e.g. GET
