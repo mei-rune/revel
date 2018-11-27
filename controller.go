@@ -191,7 +191,7 @@ func (c *Controller) Render(extraViewArgs ...interface{}) Result {
 			"(Action", c.Action, ")"))
 	}
 
-	return c.RenderTemplate(c.Name + "/" + c.MethodName + "." + c.Request.Format)
+	return c.RenderTemplate(c.Name + "/" + c.MethodType.Name + "." + c.Request.Format)
 }
 
 // RenderTemplate method does less magical way to render a template.
@@ -368,8 +368,23 @@ func (c *Controller) Message(message string, args ...interface{}) string {
 // SetAction sets the action that is being invoked in the current request.
 // It sets the following properties: Name, Action, Type, MethodType
 func (c *Controller) SetAction(controllerName, methodName string) error {
-
 	return c.SetTypeAction(controllerName, methodName, nil)
+}
+
+func (c *Controller) SetMethodName(methodName string) error {
+	// Note method name is case insensitive search
+	if c.MethodType = c.Type.Method(methodName); c.MethodType == nil {
+		return errors.New("revel/controller: failed to find action " + c.Name + "." + methodName)
+	}
+
+	c.MethodName = c.MethodType.Name
+	c.Action = c.Name + "." + c.MethodName
+
+	// Update Logger with controller and namespace
+	if c.Log != nil {
+		c.Log = c.Log.New("action", c.Action, "namespace", c.Type.Namespace)
+	}
+	return nil
 }
 
 // SetAction sets the assigns the Controller type, sets the action and initializes the controller
