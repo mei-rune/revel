@@ -17,9 +17,12 @@ import (
 	"unicode/utf8"
 )
 
+var emptyMessageArgs = []interface{}{}
+
 type Validator interface {
 	IsSatisfied(interface{}) bool
 	DefaultMessage() string
+	Message() (string, []interface{})
 }
 
 type Required struct{}
@@ -45,6 +48,10 @@ func (r Required) IsSatisfied(obj interface{}) bool {
 
 func (r Required) DefaultMessage() string {
 	return fmt.Sprintln("Required")
+}
+
+func (r Required) Message() (string, []interface{}) {
+	return "validation.required", emptyMessageArgs
 }
 
 type Min struct {
@@ -85,6 +92,10 @@ func (m Min) DefaultMessage() string {
 	return fmt.Sprintln("Minimum is", m.Min)
 }
 
+func (m Min) Message() (string, []interface{}) {
+	return "validation.minimum", []interface{}{m.Min}
+}
+
 type Max struct {
 	Max float64
 }
@@ -123,6 +134,10 @@ func (m Max) DefaultMessage() string {
 	return fmt.Sprintln("Maximum is", m.Max)
 }
 
+func (m Max) Message() (string, []interface{}) {
+	return "validation.maximum", []interface{}{m.Max}
+}
+
 // Range requires an integer to be within Min, Max inclusive.
 type Range struct {
 	Min
@@ -143,6 +158,10 @@ func (r Range) IsSatisfied(obj interface{}) bool {
 
 func (r Range) DefaultMessage() string {
 	return fmt.Sprintln("Range is", r.Min.Min, "to", r.Max.Max)
+}
+
+func (r Range) Message() (string, []interface{}) {
+	return "validation.range", []interface{}{r.Min.Min, r.Max.Max}
 }
 
 // MinSize requires an array or string to be at least a given length.
@@ -169,6 +188,10 @@ func (m MinSize) DefaultMessage() string {
 	return fmt.Sprintln("Minimum size is", m.Min)
 }
 
+func (m MinSize) Message() (string, []interface{}) {
+	return "validation.min_size", []interface{}{m.Min}
+}
+
 // MaxSize requires an array or string to be at most a given length.
 type MaxSize struct {
 	Max int
@@ -191,6 +214,10 @@ func (m MaxSize) IsSatisfied(obj interface{}) bool {
 
 func (m MaxSize) DefaultMessage() string {
 	return fmt.Sprintln("Maximum size is", m.Max)
+}
+
+func (m MaxSize) Message() (string, []interface{}) {
+	return "validation.max_size", []interface{}{m.Max}
 }
 
 // Length requires an array or string to be exactly a given length.
@@ -217,6 +244,10 @@ func (s Length) DefaultMessage() string {
 	return fmt.Sprintln("Required length is", s.N)
 }
 
+func (s Length) Message() (string, []interface{}) {
+	return "validation.length", []interface{}{s.N}
+}
+
 // Match requires a string to match a given regex.
 type Match struct {
 	Regexp *regexp.Regexp
@@ -235,6 +266,10 @@ func (m Match) DefaultMessage() string {
 	return fmt.Sprintln("Must match", m.Regexp)
 }
 
+func (m Match) Message() (string, []interface{}) {
+	return "validation.match", []interface{}{m.Regexp.String()}
+}
+
 var emailPattern = regexp.MustCompile("^[\\w!#$%&'*+/=?^_`{|}~-]+(?:\\.[\\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\\w](?:[\\w-]*[\\w])?\\.)+[a-zA-Z0-9](?:[\\w-]*[\\w])?$")
 
 type Email struct {
@@ -247,6 +282,10 @@ func ValidEmail() Email {
 
 func (e Email) DefaultMessage() string {
 	return fmt.Sprintln("Must be a valid email address")
+}
+
+func (e Email) Message() (string, []interface{}) {
+	return "validation.email", emptyMessageArgs
 }
 
 const (
@@ -365,6 +404,10 @@ func (i IPAddr) DefaultMessage() string {
 	return fmt.Sprintln("Must be a vaild IP address")
 }
 
+func (i IPAddr) Message() (string, []interface{}) {
+	return "validation.ipaddr", emptyMessageArgs
+}
+
 // Requires a MAC Address string to be exactly
 type MacAddr struct{}
 
@@ -386,6 +429,10 @@ func (m MacAddr) IsSatisfied(obj interface{}) bool {
 
 func (m MacAddr) DefaultMessage() string {
 	return fmt.Sprintln("Must be a vaild MAC address")
+}
+
+func (m MacAddr) Message() (string, []interface{}) {
+	return "validation.macaddr", emptyMessageArgs
 }
 
 var domainPattern = regexp.MustCompile(`^(([a-zA-Z0-9-\p{L}]{1,63}\.)?(xn--)?[a-zA-Z0-9\p{L}]+(-[a-zA-Z0-9\p{L}]+)*\.)+[a-zA-Z\p{L}]{2,63}$`)
@@ -424,6 +471,10 @@ func (d Domain) DefaultMessage() string {
 	return fmt.Sprintln("Must be a vaild domain address")
 }
 
+func (d Domain) Message() (string, []interface{}) {
+	return "validation.domain", emptyMessageArgs
+}
+
 var urlPattern = regexp.MustCompile(`^((((https?|ftps?|gopher|telnet|nntp)://)|(mailto:|news:))(%[0-9A-Fa-f]{2}|[-()_.!~*';/?:@#&=+$,A-Za-z0-9\p{L}])+)([).!';/?:,][[:blank:]])?$`)
 
 type URL struct {
@@ -447,6 +498,10 @@ func (u URL) IsSatisfied(obj interface{}) bool {
 
 func (u URL) DefaultMessage() string {
 	return fmt.Sprintln("Must be a vaild URL address")
+}
+
+func (u URL) Message() (string, []interface{}) {
+	return "validation.url", emptyMessageArgs
 }
 
 /*
@@ -581,6 +636,10 @@ func (p PureText) DefaultMessage() string {
 	return fmt.Sprintln("Must be a vaild Text")
 }
 
+func (p PureText) Message() (string, []interface{}) {
+	return "validation.pure_text", emptyMessageArgs
+}
+
 const (
 	ONLY_FILENAME       = 0
 	ALLOW_RELATIVE_PATH = 1
@@ -630,4 +689,8 @@ func (f FilePath) IsSatisfied(obj interface{}) bool {
 
 func (f FilePath) DefaultMessage() string {
 	return fmt.Sprintln("Must be a unsanitary string")
+}
+
+func (f FilePath) Message() (string, []interface{}) {
+	return "validation.file_path", emptyMessageArgs
 }

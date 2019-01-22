@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/fsnotify/fsnotify.v1"
-	"time"
 )
 
 // Listener is an interface for receivers of filesystem events.

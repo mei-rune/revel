@@ -1,13 +1,11 @@
 package revel
 
 import (
-	"net"
-	"net/http"
-	"time"
 	"context"
-	"golang.org/x/net/websocket"
 	"io"
 	"mime/multipart"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -15,7 +13,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
 	"github.com/revel/revel/utils"
+	"golang.org/x/net/websocket"
 )
 
 // Register the GoHttpServer engine
@@ -69,11 +70,12 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 		ReadTimeout:  time.Duration(Config.IntDefault("http.timeout.read", 0)) * time.Second,
 		WriteTimeout: time.Duration(Config.IntDefault("http.timeout.write", 0)) * time.Second,
 	}
-
 }
 
 // Handler is assigned in the Init
 func (g *GoHttpServer) Start() {
+	g.Server.Addr = g.ServerInit.Address
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)

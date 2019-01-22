@@ -68,7 +68,7 @@ type (
 
 	// Expected response for HTTP_SERVER_HEADER type (if implemented)
 	ServerHeader interface {
-		SetCookie(cookie string) // Sets the cookie
+		SetCookie(cookie string)                              // Sets the cookie
 		GetCookie(key string) (value ServerCookie, err error) // Gets the cookie
 		Set(key string, value string)
 		Add(key string, value string)
@@ -162,12 +162,11 @@ func AddHTTPMux(path string, callback interface{}) {
 	ServerEngineInit.HTTPMuxList = append(ServerEngineInit.HTTPMuxList, ServerMux{PathPrefix: path, Callback: callback})
 }
 
-// Callback point for the server to handle the
 func handleInternal(ctx ServerContext) {
 	start := time.Now()
 	var c *Controller
 	if RevelConfig.Controller.Reuse {
-		c         = RevelConfig.Controller.Stack.Pop().(*Controller)
+		c = RevelConfig.Controller.Stack.Pop().(*Controller)
 		defer func() {
 			RevelConfig.Controller.Stack.Push(c)
 		}()
@@ -176,7 +175,6 @@ func handleInternal(ctx ServerContext) {
 	}
 
 	var (
-
 		req, resp = c.Request, c.Response
 	)
 	c.SetController(ctx)

@@ -5,7 +5,6 @@
 package revel
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // This tries to benchmark the usual request-serving pipeline to get an overall
@@ -135,7 +136,7 @@ func TestOnAppStop(t *testing.T) {
 		time.Sleep(2 * time.Second)
 		RaiseEvent(ENGINE_SHUTDOWN_REQUEST, nil)
 	}()
-	Run(0)
+	Run(9001)
 	a.Equal("goodbye cruel world", i, "Did not get shutdown events")
 
 }

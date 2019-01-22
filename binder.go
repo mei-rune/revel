@@ -7,6 +7,7 @@ package revel
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -140,7 +141,11 @@ var (
 			return reflect.ValueOf(val)
 		}),
 		Unbind: func(output map[string]string, name string, val interface{}) {
-			output[name] = val.(string)
+			if u, ok := val.(template.URL); ok {
+				output[name] = string(u)
+			} else {
+				output[name] = val.(string)
+			}
 		},
 	}
 
@@ -433,7 +438,7 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 		return result
 	}
 
-	for paramName := range params.Values {
+	for paramName, values := range params.Values {
 		// The paramName string must start with the value in the "name" parameter,
 		// otherwise there is no way the parameter is part of the map
 		if !strings.HasPrefix(paramName, name) {
@@ -449,6 +454,14 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 			continue
 		}
 
+		if valueType.Kind() == reflect.Interface {
+			if strings.HasSuffix(paramName, "][]") {
+				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values))
+			} else {
+				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values[0]))
+			}
+			continue
+		}
 		result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, name+"["+fieldName+"]", valueType))
 	}
 	return result

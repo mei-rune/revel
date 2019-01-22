@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/xeonx/timeago"
 	"html"
 	"html/template"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/xeonx/timeago"
 )
 
 var (
@@ -251,6 +252,13 @@ func ReverseURL(args ...interface{}) (template.URL, error) {
 	fixedParams := len(pathData.FixedParamsByName)
 
 	for i, argValue := range args[1:] {
+		if methodType.Args[i+fixedParams] == nil {
+			return "", fmt.Errorf("reversing '%s', args[%d] is unknown type", action, i+fixedParams)
+		}
+
+		if argValue == nil {
+			return "", fmt.Errorf("reversing '%s', args[%d] is nil", action, i+fixedParams)
+		}
 		Unbind(argsByName, methodType.Args[i+fixedParams].Name, argValue)
 	}
 
