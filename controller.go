@@ -87,7 +87,6 @@ func (c *Controller) Destroy() {
 		c.resetAppControllerFields()
 		// Return this instance to the pool
 		appController := c.AppController
-		c.AppController = nil
 		if RevelConfig.Controller.Reuse {
 			RevelConfig.Controller.CachedMap[c.Name].Push(appController)
 		}
