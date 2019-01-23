@@ -152,6 +152,7 @@ func SessionFilter(c *Controller, fc []Filter) {
 	c.Session = restoreSession(c.Request)
 	sessionWasEmpty := len(c.Session) == 0
 
+	c.ViewArgs["_controller"] = c
 	// Make session vars available in templates as {{.session.xyz}}
 	c.ViewArgs["session"] = c.Session
 
