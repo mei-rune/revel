@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chanxuehong/util/math"
 )
 
 // A Binder translates between string parameters and Go data structures.
@@ -439,27 +441,48 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 	}
 
 	for paramName, values := range params.Values {
-		if len(paramName) <= len(name) {
-			continue
-		}
-		suffix := paramName[len(name)+1:]
-		fieldName := nextKey(suffix)
-		if fieldName != "" {
-			fieldName = fieldName[:len(fieldName)-1]
-		}
-		if !strings.HasPrefix(paramName, name+"["+fieldName+"]") {
+		// The paramName string must start with the value in the "name" parameter,
+		// otherwise there is no way the parameter is part of the map
+		if !strings.HasPrefix(paramName, name) {
 			continue
 		}
 
+		var fieldName, suffix string
+
+		if len(paramName) > len(name) {
+			fieldName = paramName[len(name)+1:]
+			fieldLen := -1
+			switch paramName[len(name)] {
+			case '[':
+				fieldLen = strings.IndexByte(fieldName, ']')
+			case '.':
+				fieldLen = strings.IndexAny(fieldName, ".[")
+			default:
+				fieldLen = math.MaxInt
+				break
+			}
+			if fieldLen == math.MaxInt {
+				continue
+			}
+
+			if fieldLen > 0 {
+				suffix = fieldName[fieldLen+1:]
+				fieldName = fieldName[:fieldLen]
+			}
+		}
+
 		if valueType.Kind() == reflect.Interface {
-			if strings.HasSuffix(paramName, "][]") {
+			if suffix == "[]" {
 				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values))
-			} else {
+			} else if suffix == "" {
 				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values[0]))
+			} else {
+				newValueType := reflect.TypeOf((*map[string]interface{})(nil)).Elem()
+				result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, paramName[:len(paramName)-len(suffix)], newValueType))
 			}
 			continue
 		}
-		result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, name+"["+fieldName+"]", valueType))
+		result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, paramName[:len(paramName)-len(suffix)], valueType))
 	}
 	return result
 }

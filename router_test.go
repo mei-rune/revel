@@ -482,6 +482,7 @@ func TestOverrideMethodFilter(t *testing.T) {
 
 func eq(t *testing.T, name string, a, b interface{}) bool {
 	if !reflect.DeepEqual(a, b) {
+		// panic(name + ": (actual)" + fmt.Sprint(a) + " != " + fmt.Sprint(b) + "(expected)")
 		t.Error(name, ": (actual)", a, " != ", b, "(expected)")
 		return false
 	}
