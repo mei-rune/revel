@@ -401,6 +401,8 @@ func (r *BinaryResult) Apply(req *Request, resp *Response) {
 		disposition += fmt.Sprintf(`; filename="%s"`, r.Name)
 	}
 
+	resp.Out.internalHeader.Set("Cache-control", "no-cache")
+
 	resp.Out.internalHeader.Set("Content-Disposition", disposition)
 	if resp.ContentType != "" {
 		resp.Out.internalHeader.Set("Content-Type", resp.ContentType)
