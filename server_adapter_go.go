@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/three-plus-three/modules/httputil"
 	"github.com/three-plus-three/modules/netutil"
 	"golang.org/x/net/websocket"
 )
@@ -57,28 +58,45 @@ func (g *GoHttpServer) Start() {
 		time.Sleep(100 * time.Millisecond)
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)
 	}()
-	if HTTPSsl {
-		if g.ServerInit.Network != "tcp" {
-			// This limitation is just to reduce complexity, since it is standard
-			// to terminate SSL upstream when using unix domain sockets.
-			serverLogger.Fatal("SSL is only supported for TCP sockets. Specify a port to listen on.")
-		}
-		serverLogger.Fatal("Failed to listen:", "error",
-			g.Server.ListenAndServeTLS(HTTPSslCert, HTTPSslKey))
-	} else {
-		var listener net.Listener
-		var err error
 
-		if netutil.IsUnixsocket(g.ServerInit.Network) {
-			listener, err = netutil.NewUnixListener(g.ServerInit.Network, g.Server.Addr)
-		} else {
-			listener, err = net.Listen(g.ServerInit.Network, g.Server.Addr)
-		}
-		if err != nil {
-			serverLogger.Fatal("Failed to listen:", "error", err)
-		}
+	var listener net.Listener
+	var err error
+
+	if netutil.IsUnixsocket(g.ServerInit.Network) {
+		listener, err = netutil.NewUnixListener(g.ServerInit.Network, g.Server.Addr)
+	} else {
+		listener, err = net.Listen(g.ServerInit.Network, g.Server.Addr)
+	}
+
+	if err != nil {
+		serverLogger.Fatal("Failed to listen:", "error", err)
+	}
+
+	if ln, ok := listener.(*net.TCPListener); ok {
+		listener = httputil.TcpKeepAliveListener{ln}
+	}
+
+	if HTTPSsl {
+		serverLogger.Fatal("Failed to serve:", "error", g.Server.ServeTLS(listener, HTTPSslCert, HTTPSslKey))
+	} else {
 		serverLogger.Fatal("Failed to serve:", "error", g.Server.Serve(listener))
 	}
+
+	//	if HTTPSsl {
+	//		if g.ServerInit.Network != "tcp" {
+	//			// This limitation is just to reduce complexity, since it is standard
+	//			// to terminate SSL upstream when using unix domain sockets.
+	//			serverLogger.Fatal("SSL is only supported for TCP sockets. Specify a port to listen on.")
+	//		}
+	//		serverLogger.Fatal("Failed to listen:", "error",
+	//			g.Server.ListenAndServeTLS(HTTPSslCert, HTTPSslKey))
+	//	} else {
+	//		listener, err := net.Listen(g.ServerInit.Network, g.Server.Addr)
+	//		if err != nil {
+	//			serverLogger.Fatal("Failed to listen:", "error", err)
+	//		}
+	//		serverLogger.Fatal("Failed to serve:", "error", g.Server.Serve(listener))
+	//	}
 }
 
 func (g *GoHttpServer) Handle(w http.ResponseWriter, r *http.Request) {
