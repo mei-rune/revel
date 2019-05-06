@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/three-plus-three/modules/netutil"
 	"golang.org/x/net/websocket"
 )
 
@@ -65,7 +66,14 @@ func (g *GoHttpServer) Start() {
 		serverLogger.Fatal("Failed to listen:", "error",
 			g.Server.ListenAndServeTLS(HTTPSslCert, HTTPSslKey))
 	} else {
-		listener, err := net.Listen(g.ServerInit.Network, g.Server.Addr)
+		var listener net.Listener
+		var err error
+
+		if netutil.IsUnixsocket(g.ServerInit.Network) {
+			listener, err = netutil.NewUnixListener(g.ServerInit.Network, g.Server.Addr)
+		} else {
+			listener, err = net.Listen(g.ServerInit.Network, g.Server.Addr)
+		}
 		if err != nil {
 			serverLogger.Fatal("Failed to listen:", "error", err)
 		}
@@ -329,7 +337,7 @@ func (r *GoResponse) WriteStream(name string, contentlen int64, modtime time.Tim
 
 		if contentlen != -1 {
 			header := ServerHeader(r.Goheader)
-			if writer,found := r.Writer.(*CompressResponseWriter);found {
+			if writer, found := r.Writer.(*CompressResponseWriter); found {
 				header = ServerHeader(writer.Header)
 			}
 			header.Set("Content-Length", strconv.FormatInt(contentlen, 10))
