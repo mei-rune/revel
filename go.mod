@@ -11,7 +11,7 @@ require (
 	github.com/revel/log15 v2.11.20+incompatible
 	github.com/revel/modules v0.21.0 // indirect
 	github.com/revel/pathtree v0.0.0-20140121041023-41257a1839e9
-	github.com/three-plus-three/modules v1.0.4
+	github.com/runner-mei/goutils v0.0.0-20200309094003-9c11066fc025
 	github.com/xeonx/timeago v1.0.0-rc4
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a
 	gopkg.in/fsnotify/fsnotify.v1 v1.4.7

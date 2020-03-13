@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/three-plus-three/modules/httputil"
-	"github.com/three-plus-three/modules/netutil"
+	"github.com/runner-mei/goutils/httputil"
+	"github.com/runner-mei/goutils/netutil"
 	"golang.org/x/net/websocket"
 )
 
