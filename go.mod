@@ -1,7 +1,5 @@
 module github.com/revel/revel
 
-go 1.13
-
 require (
 	github.com/chanxuehong/util v0.0.0-20200304121633-ca8141845b13
 	github.com/inconshreveable/log15 v0.0.0-20200109203555-b30bc20e4fd1 // indirect
@@ -18,3 +16,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/stack.v0 v0.0.0-20141108040640-9b43fcefddd0
 )
+
+go 1.13
