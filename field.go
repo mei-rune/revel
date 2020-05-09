@@ -6,6 +6,7 @@ package revel
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -84,7 +85,27 @@ func (f *Field) Value() interface{} {
 		rVal := reflect.ValueOf(val)
 		kind := rVal.Kind()
 		if kind == reflect.Map {
+
 			rFieldName := reflect.ValueOf(fieldName)
+
+			keyKind := rVal.Type().Key().Kind()
+			if keyKind != reflect.String {
+				switch keyKind {
+				case reflect.Int64:
+					i64, err := strconv.ParseInt(fieldName, 10, 64)
+					if err != nil {
+						panic(err)
+					}
+					rFieldName = reflect.ValueOf(i64)
+				case reflect.Int:
+					i64, err := strconv.Atoi(fieldName)
+					if err != nil {
+						panic(err)
+					}
+					rFieldName = reflect.ValueOf(i64)
+				}
+			}
+
 			rVal = rVal.MapIndex(rFieldName)
 			if !rVal.IsValid() {
 				return nil
