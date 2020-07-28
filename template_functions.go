@@ -140,10 +140,10 @@ var (
 
 		// Format a date according to the application's default date(time) format.
 		"date": func(date time.Time) string {
-			return date.Format(DateFormat)
+			return date.Local().Format(DateFormat)
 		},
 		"datetime": func(date time.Time) string {
-			return date.Format(DateTimeFormat)
+			return date.Local().Format(DateTimeFormat)
 		},
 		"slug": Slug,
 		"even": func(a int) bool { return (a % 2) == 0 },
