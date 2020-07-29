@@ -140,9 +140,15 @@ var (
 
 		// Format a date according to the application's default date(time) format.
 		"date": func(date time.Time) string {
+			if date.IsZero() {
+				return ""
+			}
 			return date.Local().Format(DateFormat)
 		},
 		"datetime": func(date time.Time) string {
+			if date.IsZero() {
+				return ""
+			}
 			return date.Local().Format(DateTimeFormat)
 		},
 		"slug": Slug,
