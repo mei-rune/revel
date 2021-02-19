@@ -7,6 +7,7 @@ package revel
 import (
 	"go/build"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -264,15 +265,34 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
 			gopaths, goroot)
 	}
 
-	appPkg, err := build.Import(importPath, "", build.FindOnly)
-	if err != nil {
-		RevelLog.Panic("Failed to import "+importPath+" with error:", "error", err)
+	var srcImportPath string
+	var srcRoot string
+	for _, pa := range gopaths {
+		dir := filepath.Join(pa, "src", importPath)
+		st, err := os.Stat(dir)
+		if err != nil {
+			continue
+		}
+		if st != nil {
+			srcImportPath = dir
+			srcRoot = filepath.Join(pa, "src")
+			break
+		}
 	}
 
-	revelPkg, err := build.Import(RevelImportPath, appPkg.Dir, build.FindOnly)
+	if srcImportPath == "" {
+		appPkg, err := build.Import(importPath, "", build.FindOnly)
+		if err != nil {
+			RevelLog.Panic("Failed to import "+importPath+" with error:", "error", err)
+		}
+		srcImportPath = appPkg.Dir
+		srcRoot = appPkg.SrcRoot
+	}
+
+	revelPkg, err := build.Import(RevelImportPath, srcImportPath, build.FindOnly)
 	if err != nil {
 		RevelLog.Fatal("Failed to find Revel with error:", "error", err)
 	}
 
-	return revelPkg.Dir[:len(revelPkg.Dir)-len(RevelImportPath)], appPkg.SrcRoot
+	return revelPkg.Dir[:len(revelPkg.Dir)-len(RevelImportPath)], srcRoot //
 }
