@@ -5,7 +5,6 @@
 package revel
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // This tries to benchmark the usual request-serving pipeline to get an overall
@@ -116,12 +117,14 @@ func TestOnAppStart(t *testing.T) {
 	startFakeBookingApp()
 
 	a.Equal("Hello World", str, "Failed to order OnAppStart")
+	RaiseEvent(ENGINE_SHUTDOWN_REQUEST, nil)
 }
 
 // Ensure on app stop runs in order
 func TestOnAppStop(t *testing.T) {
+	initFakeBookingApp()
+
 	a := assert.New(t)
-	startFakeBookingApp()
 	i := ""
 	OnAppStop(func() {
 		i += "cruel world"
@@ -133,7 +136,7 @@ func TestOnAppStop(t *testing.T) {
 	}, 1)
 	go func() {
 		time.Sleep(2 * time.Second)
-		RaiseEvent(ENGINE_SHUTDOWN_REQUEST, nil)
+		StopServer(nil)
 	}()
 	Run(0)
 	a.Equal("goodbye cruel world", i, "Did not get shutdown events")

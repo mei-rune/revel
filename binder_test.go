@@ -7,7 +7,6 @@ package revel
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/revel/config"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/revel/config"
 )
 
 type A struct {
@@ -27,6 +28,12 @@ type A struct {
 
 type B struct {
 	Extra string
+}
+
+type C struct {
+	ID              int
+	Values          []int64
+	NextOperatorsID []int64
 }
 
 var (
@@ -81,6 +88,8 @@ var (
 		"arrC[1].Name":                   {"bill"},
 		"m[a]":                           {"foo"},
 		"m[b]":                           {"bar"},
+		"mi[a]":                          {"foo"},
+		"mi[b]":                          {"bar"},
 		"m2[1]":                          {"foo"},
 		"m2[2]":                          {"bar"},
 		"m3[a]":                          {"1"},
@@ -101,6 +110,16 @@ var (
 		"uint8-overflow":                 {"1024"},
 		"arrDoS[2]":                      {"2"},
 		"arrDoS[65535]":                  {"65535"},
+
+		"rule.Name":                         {"sdfsdf"},
+		"rule.Attributes[corp_id]":          {"wx"},
+		"rule.Attributes[target_type]":      {"department"},
+		"rule.Attributes[userList][]":       {"15102171566"},
+		"rule.Attributes[departmentList][]": {"3"},
+
+		"cc.ID":                {"1"},
+		"cc.Values[]":          {"2", "3"},
+		"cc.NextOperatorsID[]": {"2", "3"},
 	}
 
 	testDate     = time.Date(1982, time.July, 9, 0, 0, 0, 0, time.UTC)
@@ -150,6 +169,7 @@ var binderTestCases = map[string]interface{}{
 			Name: "bill",
 		},
 	},
+	"mi": map[string]interface{}{"a": "foo", "b": "bar"},
 	"m":  map[string]string{"a": "foo", "b": "bar"},
 	"m2": map[int]string{1: "foo", 2: "bar"},
 	"m3": map[string]int{"a": 1, "b": 2},
@@ -172,6 +192,25 @@ var binderTestCases = map[string]interface{}{
 	"int8-overflow":  int8(0),
 	"uint8-overflow": uint8(0),
 	"arrDoS":         []int{0, 0, 2},
+
+	"rule": Rule{Name: "sdfsdf",
+		Attributes: map[string]interface{}{
+			"corp_id":        "wx",
+			"target_type":    "department",
+			"userList":       []string{"15102171566"},
+			"departmentList": []string{"3"},
+		}},
+
+	"cc": C{
+		ID:              1,
+		Values:          []int64{2, 3},
+		NextOperatorsID: []int64{2, 3},
+	},
+}
+
+type Rule struct {
+	Name       string
+	Attributes map[string]interface{}
 }
 
 // Types that files may be bound to, and a func that can read the content from

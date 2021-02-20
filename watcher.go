@@ -10,8 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"time"
+
+	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 // Listener is an interface for receivers of filesystem events.

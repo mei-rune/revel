@@ -5,13 +5,14 @@
 package revel
 
 import (
+	"encoding/json"
+	"fmt"
 	"go/build"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
-	"encoding/json"
-	"fmt"
 	"github.com/revel/config"
 	"github.com/revel/revel/logger"
 	"github.com/revel/revel/model"
@@ -108,8 +109,25 @@ func Init(inputmode, importPath, srcPath string) {
 	// If the SourcePath is not specified, find it using build.Import.
 	var revelSourcePath string // may be different from the app source path
 	if SourcePath == "" {
-		revelSourcePath, SourcePath = findSrcPaths(importPath)
+		revelSourcePath, SourcePath, _ = findSrcPaths(importPath)
+
         BasePath = SourcePath
+		// RevelPath = filepath.Join(revelSourcePath, filepath.FromSlash(RevelImportPath))
+
+		// if IsGoModule {
+		// 	bs, err := ioutil.ReadFile(filepath.Join(SourcePath, "go.mod"))
+		// 	if err != nil {
+		// 		RevelLog.Fatal("Failed to read mod file:", "error", err)
+		// 	}
+		// 	modrelatepath := modfile.ModulePath(bs)
+		// 	if importPath == modrelatepath {
+		// 		BasePath = SourcePath
+		// 	} else {
+		// 		BasePath = filepath.Join(SourcePath, filepath.FromSlash(importPath[len(modrelatepath)+1:]))
+		// 	}
+		// } else {
+		// 	BasePath = filepath.Join(SourcePath, filepath.FromSlash(importPath))
+		// }
 	} else {
 		// If the SourcePath was specified, assume both Revel and the app are within it.
 		SourcePath = filepath.Clean(SourcePath)
@@ -294,19 +312,14 @@ func CheckInit() {
 
 // findSrcPaths uses the "go/build" package to find the source root for Revel
 // and the app.
-func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
+func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string, isGoModule bool) {
     if importFsPath,found := packagePathMap[importPath];found {
-        return packagePathMap[RevelImportPath],importFsPath
+		return packagePathMap[RevelImportPath], importFsPath, false
     }
 	var (
 		gopaths = filepath.SplitList(build.Default.GOPATH)
 		goroot  = build.Default.GOROOT
 	)
-
-	if len(gopaths) == 0 {
-		RevelLog.Fatal("GOPATH environment variable is not set. " +
-			"Please refer to http://golang.org/doc/code.html to configure your Go environment.")
-	}
 
 	if ContainsString(gopaths, goroot) {
 		RevelLog.Fatalf("GOPATH (%s) must not include your GOROOT (%s). "+
@@ -314,15 +327,61 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
 			gopaths, goroot)
 	}
 
+	isGoModule = false
+	var srcImportPath string
+	for _, pa := range gopaths {
+		dir := filepath.Join(pa, "src", importPath)
+		st, err := os.Stat(dir)
+		if err != nil {
+			continue
+		}
+		if st != nil {
+			srcImportPath = dir
+			break
+		}
+	}
+
+	if srcImportPath == "" {
+		if os.Getenv("GO111MODULE") == "on" {
+			modpath := GetModPath()
+			if modpath == "" {
+				RevelLog.Fatal("GOPATH environment variable is not set. " +
+					"Please refer to http://golang.org/doc/code.html to configure your Go environment.")
+			}
+
+			srcImportPath = modpath
+			isGoModule = true
+		} else {
 	appPkg, err := build.Import(importPath, "", build.FindOnly)
 	if err != nil {
 		RevelLog.Panic("Failed to import "+importPath+" with error:", "error", err)
 	}
+			srcImportPath = appPkg.Dir
+		}
+	}
 
-	revelPkg, err := build.Import(RevelImportPath, appPkg.Dir, build.FindOnly)
+	revelPkg, err := build.Import(RevelImportPath, srcImportPath, build.FindOnly)
 	if err != nil {
 		RevelLog.Fatal("Failed to find Revel with error:", "error", err)
 	}
 
-	return revelPkg.Dir, appPkg.Dir
+	return revelPkg.Dir, srcImportPath, isGoModule //
+}
+
+func GetModPath() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		gomod := filepath.Join(wd, "go.mod")
+		if _, err := os.Stat(gomod); err == nil {
+			return wd
+		}
+		parent := filepath.Dir(wd)
+		if len(parent) >= len(wd) {
+			return ""
+		}
+		wd = parent
+	}
 }

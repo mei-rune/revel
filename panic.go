@@ -42,6 +42,7 @@ func handleInvocationPanic(c *Controller, err interface{}) {
 	if error == nil && DevMode {
 		// Only show the sensitive information in the debug stack trace in development mode, not production
 		c.Response.SetStatus(http.StatusInternalServerError)
+		fmt.Fprintln(c.Response.GetWriter(), err)
 		_, _ = c.Response.GetWriter().Write(debug.Stack())
 		return
 	}

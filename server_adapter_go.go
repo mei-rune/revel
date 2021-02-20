@@ -1,13 +1,11 @@
 package revel
 
 import (
-	"net"
-	"net/http"
-	"time"
 	"context"
-	"golang.org/x/net/websocket"
 	"io"
 	"mime/multipart"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -15,7 +13,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
 	"github.com/revel/revel/utils"
+	"github.com/runner-mei/goutils/httputil"
+	"github.com/runner-mei/goutils/netutil"
+	"golang.org/x/net/websocket"
 )
 
 // Register the GoHttpServer engine
@@ -74,23 +77,33 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 
 // Handler is assigned in the Init
 func (g *GoHttpServer) Start() {
+	g.Server.Addr = g.ServerInit.Address
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)
 	}()
-	if HTTPSsl {
-		if g.ServerInit.Network != "tcp" {
-			// This limitation is just to reduce complexity, since it is standard
-			// to terminate SSL upstream when using unix domain sockets.
-			serverLogger.Fatal("SSL is only supported for TCP sockets. Specify a port to listen on.")
-		}
-		serverLogger.Fatal("Failed to listen:", "error",
-			g.Server.ListenAndServeTLS(HTTPSslCert, HTTPSslKey))
+
+	var listener net.Listener
+	var err error
+
+	if netutil.IsUnixsocket(g.ServerInit.Network) {
+		listener, err = netutil.NewUnixListener(g.ServerInit.Network, g.Server.Addr)
 	} else {
-		listener, err := net.Listen(g.ServerInit.Network, g.Server.Addr)
-		if err != nil {
-			serverLogger.Fatal("Failed to listen:", "error", err)
-		}
+		listener, err = net.Listen(g.ServerInit.Network, g.Server.Addr)
+	}
+
+	if err != nil {
+		serverLogger.Fatal("Failed to listen:", "error", err)
+	}
+
+	if ln, ok := listener.(*net.TCPListener); ok {
+		listener = httputil.TcpKeepAliveListener{ln}
+	}
+
+	if HTTPSsl {
+		serverLogger.Fatal("Failed to serve:", "error", g.Server.ServeTLS(listener, HTTPSslCert, HTTPSslKey))
+	} else {
 		serverLogger.Warn("Server exiting:", "error", g.Server.Serve(listener))
 	}
 }
@@ -495,7 +508,7 @@ func (r *GoResponse) WriteStream(name string, contentlen int64, modtime time.Tim
 		if _, err := io.Copy(r.Writer, reader); err != nil {
 			r.Original.WriteHeader(http.StatusInternalServerError)
 			return err
-		} 
+		}
 	}
 	return nil
 }

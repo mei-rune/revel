@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime"
+	"strings"
 )
 
 // ValidationError simple struct to store the Message & Key of a validation error
@@ -225,17 +226,15 @@ func (v *Validation) apply(chk Validator, obj interface{}) *ValidationResult {
 		utilLog.Error("Validation: Failed to get Caller information to look up Validation key")
 	}
 
+	message, args := chk.Message()
 	// Add the error to the validation context.
-	err := &ValidationError{
-		Message: chk.DefaultMessage(),
-		Key:     key,
+	result := v.ValidationResult(false).MessageKey(message, args...).Key(key)
+	if strings.HasPrefix(result.Error.Message, "???") {
+		result.Error.Message = chk.DefaultMessage()
 	}
-	v.Errors = append(v.Errors, err)
 
-	// Also return it in the result.
-	vr := v.ValidationResult(false)
-	vr.Error = err
-	return vr
+	v.Errors = append(v.Errors, result.Error)
+	return result
 }
 
 // Check applies a group of validators to a field, in order, and return the

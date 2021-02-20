@@ -7,8 +7,10 @@ package revel
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
+	"math"
 	"mime/multipart"
 	"os"
 	"reflect"
@@ -16,6 +18,8 @@ import (
 	"strings"
 	"time"
 )
+
+const MaxInt = math.MaxInt64
 
 // A Binder translates between string parameters and Go data structures.
 type Binder struct {
@@ -140,7 +144,11 @@ var (
 			return reflect.ValueOf(val)
 		}),
 		Unbind: func(output map[string]string, name string, val interface{}) {
-			output[name] = val.(string)
+			if u, ok := val.(template.URL); ok {
+				output[name] = string(u)
+			} else {
+				output[name] = val.(string)
+			}
 		},
 	}
 
@@ -440,23 +448,49 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 		return result
 	}
 
-	for paramName := range params.Values {
+	for paramName, values := range params.Values {
 		// The paramName string must start with the value in the "name" parameter,
 		// otherwise there is no way the parameter is part of the map
 		if !strings.HasPrefix(paramName, name) {
 			continue
 		}
 
-		suffix := paramName[len(name)+1:]
-		fieldName := nextKey(suffix)
-		if fieldName != "" {
-			fieldName = fieldName[:len(fieldName)-1]
-		}
-		if !strings.HasPrefix(paramName, name+"["+fieldName+"]") {
-			continue
+		var fieldName, suffix string
+
+		if len(paramName) > len(name) {
+			fieldName = paramName[len(name)+1:]
+			fieldLen := -1
+			switch paramName[len(name)] {
+			case '[':
+				fieldLen = strings.IndexByte(fieldName, ']')
+			case '.':
+				fieldLen = strings.IndexAny(fieldName, ".[")
+			default:
+				fieldLen = MaxInt
+				break
+			}
+			if fieldLen == MaxInt {
+				continue
+			}
+
+			if fieldLen > 0 {
+				suffix = fieldName[fieldLen+1:]
+				fieldName = fieldName[:fieldLen]
+			}
 		}
 
-		result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, name+"["+fieldName+"]", valueType))
+		if valueType.Kind() == reflect.Interface {
+			if suffix == "[]" {
+				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values))
+			} else if suffix == "" {
+				result.SetMapIndex(BindValue(fieldName, keyType), reflect.ValueOf(values[0]))
+			} else {
+				newValueType := reflect.TypeOf((*map[string]interface{})(nil)).Elem()
+				result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, paramName[:len(paramName)-len(suffix)], newValueType))
+			}
+			continue
+		}
+		result.SetMapIndex(BindValue(fieldName, keyType), Bind(params, paramName[:len(paramName)-len(suffix)], valueType))
 	}
 	return result
 }

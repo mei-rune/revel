@@ -10,7 +10,11 @@ import (
 	"mime/multipart"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/revel/revel/utils"
 )
 
 const (
@@ -163,6 +167,70 @@ func AddHTTPMux(path string, callback interface{}) {
 }
 
 // Callback point for the server to handle the
+var (
+	// The simple stacks for response and controllers are a linked list
+	// of reused objects.
+	controllerStack *utils.SimpleLockStack
+
+	cachedControllerMapLock      sync.Mutex
+	cachedControllerMapValue     atomic.Value
+	cachedControllerStackSize    = 10
+	cachedControllerStackMaxSize = 10
+)
+
+func getCachedControllerMap() map[string]*utils.SimpleLockStack {
+	o := cachedControllerMapValue.Load()
+	if o != nil {
+		cachedControllerMap, _ := o.(map[string]*utils.SimpleLockStack)
+		return cachedControllerMap
+	}
+	return nil
+}
+
+func getCachedControllerStack(name string, creator func() interface{}) *utils.SimpleLockStack {
+	var cachedControllerMap map[string]*utils.SimpleLockStack
+	o := cachedControllerMapValue.Load()
+	if o != nil {
+		cachedControllerMap, _ = o.(map[string]*utils.SimpleLockStack)
+		if cachedControllerMap != nil {
+			stack := cachedControllerMap[name]
+			if stack != nil {
+				return stack
+			}
+		}
+	}
+
+	if creator == nil {
+		return nil
+	}
+
+	cachedControllerMapLock.Lock()
+	defer cachedControllerMapLock.Unlock()
+
+	// double check
+	if o = cachedControllerMapValue.Load(); o != nil {
+		cachedControllerMap, _ = o.(map[string]*utils.SimpleLockStack)
+		if cachedControllerMap != nil {
+			stack := cachedControllerMap[name]
+			if stack != nil {
+				return stack
+			}
+		}
+	}
+
+	copyed := map[string]*utils.SimpleLockStack{}
+	for key, value := range cachedControllerMap {
+		copyed[key] = value
+	}
+	stack := utils.NewStackLock(
+		cachedControllerStackSize,
+		cachedControllerStackMaxSize,
+		creator)
+	copyed[name] = stack
+	cachedControllerMapValue.Store(copyed)
+	return stack
+}
+
 func handleInternal(ctx ServerContext) {
 	start := time.Now()
 	var c *Controller

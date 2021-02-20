@@ -18,31 +18,30 @@ import (
 
 	"github.com/revel/revel/logger"
 	"github.com/revel/revel/session"
-	"github.com/revel/revel/utils"
 )
 
 // Controller Revel's controller structure that gets embedded in user defined
 // controllers
 type Controller struct {
-	Name          string                 // The controller name, e.g. "Application"
-	Type          *ControllerType        // A description of the controller type.
-	MethodName    string                 // The method name, e.g. "Index"
-	MethodType    *MethodType            // A description of the invoked action type.
-	AppController interface{}            // The controller that was instantiated. embeds revel.Controller
-	Action        string                 // The fully qualified action name, e.g. "App.Index"
-	ClientIP      string                 // holds IP address of request came from
+	Name          string          // The controller name, e.g. "Application"
+	Type          *ControllerType // A description of the controller type.
+	MethodName    string          // The method name, e.g. "Index"
+	MethodType    *MethodType     // A description of the invoked action type.
+	AppController interface{}     // The controller that was instantiated. embeds revel.Controller
+	Action        string          // The fully qualified action name, e.g. "App.Index"
+	ClientIP      string          // holds IP address of request came from
 
-	Request       *Request
-	Response      *Response
-	Result        Result
+	Request  *Request
+	Response *Response
+	Result   Result
 
-	Flash         Flash                  // User cookie, cleared after 1 request.
-	Session       session.Session        // Session, stored using the session engine specified
-	Params        *Params                // Parameters from URL and form (including multipart).
-	Args          map[string]interface{} // Per-request scratch space.
-	ViewArgs      map[string]interface{} // Variables passed to the template.
-	Validation    *Validation            // Data validation helpers
-	Log           logger.MultiLogger     // Context Logger
+	Flash      Flash                  // User cookie, cleared after 1 request.
+	Session    session.Session        // Session, stored using the session engine specified
+	Params     *Params                // Parameters from URL and form (including multipart).
+	Args       map[string]interface{} // Per-request scratch space.
+	ViewArgs   map[string]interface{} // Variables passed to the template.
+	Validation *Validation            // Data validation helpers
+	Log        logger.MultiLogger     // Context Logger
 }
 
 // The map of controllers, controllers are mapped by using the namespace|controller_name as the key
@@ -88,9 +87,12 @@ func (c *Controller) Destroy() {
 		// Return this instance to the pool
 		appController := c.AppController
 		c.AppController = nil
-		if RevelConfig.Controller.Reuse {
-			RevelConfig.Controller.CachedMap[c.Name].Push(appController)
+
+		stack := getCachedControllerStack(c.Name, nil)
+		if stack != nil {
+			stack.Push(appController)
 		}
+		c.AppController = nil
 	}
 
 	c.Request.Destroy()
@@ -312,7 +314,7 @@ func (c *Controller) RenderFile(file *os.File, delivery ContentDisposition) Resu
 	c.setStatusIfNil(http.StatusOK)
 
 	var (
-		modtime = time.Now()
+		modtime       = time.Now()
 		fileInfo, err = file.Stat()
 	)
 	if err != nil {
@@ -362,9 +364,9 @@ func (c *Controller) Redirect(val interface{}, args ...interface{}) Result {
 func (c *Controller) Stats() map[string]interface{} {
 	result := CurrentEngine.Stats()
 	if RevelConfig.Controller.Reuse {
-		result["revel-controllers"] = RevelConfig.Controller.Stack.String()
-		for key, appStack := range RevelConfig.Controller.CachedMap {
-			result["app-" + key] = appStack.String()
+		result["revel-controllers"] = controllerStack.String()
+		for key, appStack := range getCachedControllerMap() {
+			result["app-"+key] = appStack.String()
 		}
 	}
 	return result
@@ -381,8 +383,23 @@ func (c *Controller) Message(message string, args ...interface{}) string {
 // SetAction sets the action that is being invoked in the current request.
 // It sets the following properties: Name, Action, Type, MethodType
 func (c *Controller) SetAction(controllerName, methodName string) error {
-
 	return c.SetTypeAction(controllerName, methodName, nil)
+}
+
+func (c *Controller) SetMethodName(methodName string) error {
+	// Note method name is case insensitive search
+	if c.MethodType = c.Type.Method(methodName); c.MethodType == nil {
+		return errors.New("revel/controller: failed to find action " + c.Name + "." + methodName)
+	}
+
+	c.MethodName = c.MethodType.Name
+	c.Action = c.Name + "." + c.MethodName
+
+	// Update Logger with controller and namespace
+	if c.Log != nil {
+		c.Log = c.Log.New("action", c.Action, "namespace", c.Type.Namespace)
+	}
+	return nil
 }
 
 // SetAction sets the assigns the Controller type, sets the action and initializes the controller
@@ -411,18 +428,13 @@ func (c *Controller) SetTypeAction(controllerName, methodName string, typeOfCont
 	}
 
 	if RevelConfig.Controller.Reuse {
-		if _, ok := RevelConfig.Controller.CachedMap[c.Name]; !ok {
-			// Create a new stack for this controller
-			localType := c.Type.Type
-			RevelConfig.Controller.CachedMap[c.Name] = utils.NewStackLock(
-				RevelConfig.Controller.CachedStackSize,
-				RevelConfig.Controller.CachedStackMaxSize,
-				func() interface{} {
-					return reflect.New(localType).Interface()
-				})
-		}
+		// Create a new stack for this controller
+		localType := c.Type.Type
+		stack := getCachedControllerStack(c.Name, func() interface{} {
+			return reflect.New(localType).Interface()
+		})
 		// Instantiate the controller.
-		c.AppController = RevelConfig.Controller.CachedMap[c.Name].Pop()
+		c.AppController = stack.Pop()
 	} else {
 		c.AppController = reflect.New(c.Type.Type).Interface()
 	}
@@ -482,8 +494,8 @@ func findControllers(appControllerType reflect.Type) (indexes [][]int) {
 	for len(queue) > 0 {
 		// Get the next value and de-reference it if necessary.
 		var (
-			node = queue[0]
-			elem = node.val
+			node     = queue[0]
+			elem     = node.val
 			elemType = elem.Type()
 		)
 		if elemType.Kind() == reflect.Ptr {

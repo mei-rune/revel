@@ -34,13 +34,22 @@ type SourceLine struct {
 // provide a code listing of that, on the line that eventually triggered
 // the panic.  Returns nil if no relevant stack frame can be found.
 func NewErrorFromPanic(err interface{}) *Error {
+	// Show an error page.
+	description := "Unspecified error"
+	if err != nil {
+		description = fmt.Sprint(err)
+	}
 
 	// Parse the filename and line from the originating line of app code.
 	// /Users/robfig/code/gocode/src/revel/examples/booking/app/controllers/hotels.go:191 (0x44735)
 	stack := string(debug.Stack())
 	frame, basePath := findRelevantStackFrame(stack)
 	if frame == -1 {
-		return nil
+		return &Error{
+			Title:       "Runtime Panic",
+			Description: description,
+			Stack:       stack,
+	}
 	}
 
 	stack = stack[frame:]
@@ -50,11 +59,6 @@ func NewErrorFromPanic(err interface{}) *Error {
 	var line int
 	fmt.Sscan(stackElement[colonIndex+1:], &line)
 
-	// Show an error page.
-	description := "Unspecified error"
-	if err != nil {
-		description = fmt.Sprint(err)
-	}
 	lines, readErr := ReadLines(filename)
 	if readErr != nil {
 		utilLog.Error("Unable to read file", "file", filename, "error", readErr)

@@ -17,9 +17,9 @@ import (
 	"os"
 	"sync"
 
+	"errors"
 	"github.com/revel/pathtree"
 	"github.com/revel/revel/logger"
-	"errors"
 )
 
 const (

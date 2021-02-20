@@ -18,7 +18,7 @@ func TestContentTypeByFilename(t *testing.T) {
 		"helloworld":    "application/octet-stream",
 		"hello.world.c": "text/x-c; charset=utf-8",
 	}
-	srcPath, _ := findSrcPaths(RevelImportPath)
+	srcPath, _, _ := findSrcPaths(RevelImportPath)
 	ConfPaths = []string{filepath.Join(
 		srcPath,
 		"conf"),

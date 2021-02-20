@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -143,8 +144,8 @@ func (r *RenderTemplateResult) Apply(req *Request, resp *Response) {
 	defer func() {
 		if err := recover(); err != nil {
 			resultsLog.Error("Apply: panic recovery", "error", err)
-			PlaintextErrorResult{fmt.Errorf("Template Execution Panic in %s:\n%s",
-				r.Template.Name(), err)}.Apply(req, resp)
+			PlaintextErrorResult{fmt.Errorf("Template Execution Panic in %s:\n%s\n%s",
+				r.Template.Name(), err, string(debug.Stack()))}.Apply(req, resp)
 		}
 	}()
 
@@ -191,7 +192,7 @@ func (r *RenderTemplateResult) ToBytes() (b *bytes.Buffer, err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr)
+			err = r.genTemplateError(fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr), debug.Stack())
 		}
 	}()
 	b = &bytes.Buffer{}
@@ -203,12 +204,41 @@ func (r *RenderTemplateResult) ToBytes() (b *bytes.Buffer, err error) {
 	return
 }
 
+func (r *RenderTemplateResult) genTemplateError(err error, stack []byte) *Error {
+	var templateContent []string
+	templateName, line, description := ParseTemplateError(err)
+	if templateName == "" {
+		templateLog.Info("Cannot determine template name to render error", "error", err)
+		templateName = r.Template.Name()
+		templateContent = r.Template.Content()
+	} else {
+		lang, _ := r.ViewArgs[CurrentLocaleViewArg].(string)
+		if tmpl, err := MainTemplateLoader.TemplateLang(templateName, lang); err == nil {
+			templateContent = tmpl.Content()
+		} else {
+			templateLog.Info("Unable to retreive template ", "error", err)
+		}
+	}
+	e := &Error{
+		Title:       "Template Execution Error",
+		Path:        templateName,
+		Description: description,
+		Line:        line,
+		SourceLines: templateContent,
+	}
+
+	if len(stack) == 0 {
+		e.Stack = string(stack)
+	}
+	return e
+}
+
 // Output the template to the writer, catch any panics and return as an error
 func (r *RenderTemplateResult) renderOutput(wr io.Writer) (err error) {
 	defer func() {
 		if rerr := recover(); rerr != nil {
 			resultsLog.Error("ApplyBytes: panic recovery", "recover-error", rerr)
-			err = fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr)
+			err = r.genTemplateError(fmt.Errorf("Template Execution Panic in %s:\n%s", r.Template.Name(), rerr), debug.Stack())
 		}
 	}()
 	err = r.Template.Render(wr, r.ViewArgs)
@@ -267,29 +297,9 @@ func (r *RenderTemplateResult) compressHtml(b *bytes.Buffer) (b2 *bytes.Buffer) 
 func (r *RenderTemplateResult) renderError(err error, req *Request, resp *Response) {
 	compileError, found := err.(*Error)
 	if !found {
-		var templateContent []string
-		templateName, line, description := ParseTemplateError(err)
-		if templateName == "" {
-			templateLog.Info("Cannot determine template name to render error", "error", err)
-			templateName = r.Template.Name()
-			templateContent = r.Template.Content()
-
-		} else {
-			lang, _ := r.ViewArgs[CurrentLocaleViewArg].(string)
-			if tmpl, err := MainTemplateLoader.TemplateLang(templateName, lang); err == nil {
-				templateContent = tmpl.Content()
-			} else {
-				templateLog.Info("Unable to retreive template ", "error", err)
-			}
-		}
-		compileError = &Error{
-			Title:       "Template Execution Error",
-			Path:        templateName,
-			Description: description,
-			Line:        line,
-			SourceLines: templateContent,
-		}
+		compileError = r.genTemplateError(err, nil)
 	}
+
 	resp.Status = 500
 	resultsLog.Errorf("render: Template Execution Error (in %s): %s", compileError.Path, compileError.Description)
 	ErrorResult{r.ViewArgs, compileError}.Apply(req, resp)
@@ -397,6 +407,7 @@ type BinaryResult struct {
 }
 
 func (r *BinaryResult) Apply(req *Request, resp *Response) {
+	resp.Out.internalHeader.Set("Cache-control", "no-cache")
 	if r.Delivery != NoDisposition {
 		disposition := string(r.Delivery)
 		if r.Name != "" {

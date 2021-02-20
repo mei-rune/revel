@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/xeonx/timeago"
 	"html"
 	"html/template"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/xeonx/timeago"
 )
 
 var (
@@ -139,10 +140,16 @@ var (
 
 		// Format a date according to the application's default date(time) format.
 		"date": func(date time.Time) string {
-			return date.Format(DateFormat)
+			if date.IsZero() {
+				return ""
+			}
+			return date.Local().Format(DateFormat)
 		},
 		"datetime": func(date time.Time) string {
-			return date.Format(DateTimeFormat)
+			if date.IsZero() {
+				return ""
+			}
+			return date.Local().Format(DateTimeFormat)
 		},
 		// Fetch an object from the session.
 		"session": func(key string, viewArgs map[string]interface{}) interface{} {
@@ -251,6 +258,13 @@ func ReverseURL(args ...interface{}) (template.URL, error) {
 	fixedParams := len(pathData.FixedParamsByName)
 
 	for i, argValue := range args[1:] {
+		if methodType.Args[i+fixedParams] == nil {
+			return "", fmt.Errorf("reversing '%s', args[%d] is unknown type", action, i+fixedParams)
+		}
+
+		if argValue == nil {
+			return "", fmt.Errorf("reversing '%s', args[%d] is nil", action, i+fixedParams)
+		}
 		Unbind(argsByName, methodType.Args[i+fixedParams].Name, argValue)
 	}
 
