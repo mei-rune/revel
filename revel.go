@@ -6,12 +6,15 @@ package revel
 
 import (
 	"go/build"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	// "cmd/vendor/golang.org/x/mod/modfile"
 	"github.com/revel/config"
+	"golang.org/x/mod/modfile"
 )
 
 const (
@@ -54,6 +57,7 @@ var (
 	ViewsPath  string // e.g. "$GOPATH/src/corp/sample/app/views"
 	ImportPath string // e.g. "corp/sample"
 	SourcePath string // e.g. "$GOPATH/src"
+	IsGoModule bool
 
 	Config  *config.Context
 	RunMode string // Application-defined (by default, "dev" or "prod")
@@ -121,7 +125,7 @@ func Init(mode, importPath, srcPath string) {
 	// If the SourcePath is not specified, find it using build.Import.
 	var revelSourcePath string // may be different from the app source path
 	if SourcePath == "" {
-		revelSourcePath, SourcePath = findSrcPaths(importPath)
+		revelSourcePath, SourcePath, IsGoModule = findSrcPaths(importPath)
 	} else {
 		// If the SourcePath was specified, assume both Revel and the app are within it.
 		SourcePath = filepath.Clean(SourcePath)
@@ -130,7 +134,22 @@ func Init(mode, importPath, srcPath string) {
 	}
 
 	RevelPath = filepath.Join(revelSourcePath, filepath.FromSlash(RevelImportPath))
-	BasePath = filepath.Join(SourcePath, filepath.FromSlash(importPath))
+
+	if IsGoModule {
+		bs, err := ioutil.ReadFile(filepath.Join(SourcePath, "go.mod"))
+		if err != nil {
+			RevelLog.Fatal("Failed to read mod file:", "error", err)
+		}
+		modrelatepath := modfile.ModulePath(bs)
+		if importPath == modrelatepath {
+			BasePath = SourcePath
+		} else {
+			BasePath = filepath.Join(SourcePath, filepath.FromSlash(importPath[len(modrelatepath)+1:]))
+		}
+	} else {
+		BasePath = filepath.Join(SourcePath, filepath.FromSlash(importPath))
+	}
+
 	AppPath = filepath.Join(BasePath, "app")
 	ViewsPath = filepath.Join(AppPath, "views")
 
@@ -248,16 +267,11 @@ func CheckInit() {
 
 // findSrcPaths uses the "go/build" package to find the source root for Revel
 // and the app.
-func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
+func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string, isGoModule bool) {
 	var (
 		gopaths = filepath.SplitList(build.Default.GOPATH)
 		goroot  = build.Default.GOROOT
 	)
-
-	if len(gopaths) == 0 {
-		RevelLog.Fatal("GOPATH environment variable is not set. " +
-			"Please refer to http://golang.org/doc/code.html to configure your Go environment.")
-	}
 
 	if ContainsString(gopaths, goroot) {
 		RevelLog.Fatalf("GOPATH (%s) must not include your GOROOT (%s). "+
@@ -265,6 +279,7 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
 			gopaths, goroot)
 	}
 
+	isGoModule = false
 	var srcImportPath string
 	var srcRoot string
 	for _, pa := range gopaths {
@@ -281,12 +296,24 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
 	}
 
 	if srcImportPath == "" {
-		appPkg, err := build.Import(importPath, "", build.FindOnly)
-		if err != nil {
-			RevelLog.Panic("Failed to import "+importPath+" with error:", "error", err)
+		if os.Getenv("GO111MODULE") == "on" {
+			modpath := GetModPath()
+			if modpath == "" {
+				RevelLog.Fatal("GOPATH environment variable is not set. " +
+					"Please refer to http://golang.org/doc/code.html to configure your Go environment.")
+			}
+
+			srcImportPath = modpath
+			srcRoot = modpath
+			isGoModule = true
+		} else {
+			appPkg, err := build.Import(importPath, "", build.FindOnly)
+			if err != nil {
+				RevelLog.Panic("Failed to import "+importPath+" with error:", "error", err)
+			}
+			srcImportPath = appPkg.Dir
+			srcRoot = appPkg.SrcRoot
 		}
-		srcImportPath = appPkg.Dir
-		srcRoot = appPkg.SrcRoot
 	}
 
 	revelPkg, err := build.Import(RevelImportPath, srcImportPath, build.FindOnly)
@@ -294,5 +321,23 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string) {
 		RevelLog.Fatal("Failed to find Revel with error:", "error", err)
 	}
 
-	return revelPkg.Dir[:len(revelPkg.Dir)-len(RevelImportPath)], srcRoot //
+	return revelPkg.SrcRoot, srcRoot, isGoModule //
+}
+
+func GetModPath() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		gomod := filepath.Join(wd, "go.mod")
+		if _, err := os.Stat(gomod); err == nil {
+			return wd
+		}
+		parent := filepath.Dir(wd)
+		if len(parent) >= len(wd) {
+			return ""
+		}
+		wd = parent
+	}
 }

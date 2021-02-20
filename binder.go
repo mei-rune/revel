@@ -10,15 +10,16 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+	"math"
 	"mime/multipart"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/chanxuehong/util/math"
 )
+
+const MaxInt = math.MaxInt64
 
 // A Binder translates between string parameters and Go data structures.
 type Binder struct {
@@ -458,10 +459,10 @@ func bindMap(params *Params, name string, typ reflect.Type) reflect.Value {
 			case '.':
 				fieldLen = strings.IndexAny(fieldName, ".[")
 			default:
-				fieldLen = math.MaxInt
+				fieldLen = MaxInt
 				break
 			}
-			if fieldLen == math.MaxInt {
+			if fieldLen == MaxInt {
 				continue
 			}
 
