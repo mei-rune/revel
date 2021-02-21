@@ -17,7 +17,11 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+type Event = int
+type EventResponse = int
+
 const (
+
 	// RevelImportPath Revel framework import path
 	RevelImportPath = "github.com/revel/revel"
 )
