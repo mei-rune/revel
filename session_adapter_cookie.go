@@ -2,28 +2,42 @@ package revel
 
 import (
 	"fmt"
-	"github.com/revel/revel/session"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/revel/revel/session"
 )
 
-
 type (
+	Session = session.Session
+	
 	// The session cookie engine
 	SessionCookieEngine struct {
 		ExpireAfterDuration time.Duration
 	}
 )
 
-// A logger for the session engine
-var sessionEngineLog = RevelLog.New("section", "session-engine")
+var (
+	// A logger for the session engine
+	sessionEngineLog = RevelLog.New("section", "session-engine")
+
+	cookiePath string
+	sessionKey = CookiePrefix + session.SessionCookieSuffix
+)
 
 // Create a new instance to test
 func init() {
 	RegisterSessionEngine(initCookieEngine, "revel-cookie")
+}
+
+func SetCookiePath(pa string) {
+	cookiePath = pa
+}
+func SetSessionKey(key string) {
+	sessionKey = key
 }
 
 // For testing purposes this engine is used
@@ -53,7 +67,7 @@ func (cse *SessionCookieEngine) Decode(c *Controller) {
 	// Decode the session from a cookie.
 	c.Session = map[string]interface{}{}
 	sessionMap := c.Session
-	if cookie, err := c.Request.Cookie(CookiePrefix + session.SessionCookieSuffix); err != nil {
+	if cookie, err := c.Request.Cookie(sessionKey); err != nil {
 		return
 	} else {
 		cse.DecodeCookie(cookie, sessionMap)
@@ -130,16 +144,16 @@ func (cse *SessionCookieEngine) GetCookie(s session.Session) *http.Cookie {
 
 	sessionData := url.QueryEscape(sessionValue)
 	sessionCookie := &http.Cookie{
-		Name:     CookiePrefix + session.SessionCookieSuffix,
+		Name:     sessionKey,
 		Value:    Sign(sessionData) + "-" + sessionData,
 		Domain:   CookieDomain,
-		Path:     "/",
+		Path:     cookiePath,
 		HttpOnly: true,
 		Secure:   CookieSecure,
 		SameSite: CookieSameSite,
 		Expires:  ts.UTC(),
 		MaxAge:   int(cse.ExpireAfterDuration.Seconds()),
 	}
-	return sessionCookie
 
+	return sessionCookie
 }

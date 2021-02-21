@@ -1,8 +1,46 @@
 package revel
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/revel/revel/logger"
 )
+
+type compatLogger struct {
+	println func(args ...interface{})
+	printf  func(msg string, args ...interface{})
+}
+
+func (l compatLogger) Println(args ...interface{}) {
+	l.println(args...)
+}
+
+func (l compatLogger) Print(args ...interface{}) {
+	l.println(args...)
+}
+
+func (l compatLogger) Printf(msg string, args ...interface{}) {
+	l.printf(msg, args...)
+}
+
+func toPrintln(f func(string, ...interface{})) func(args ...interface{}) {
+	return func(args ...interface{}) {
+		switch len(args) {
+		case 0:
+			f("")
+		case 1:
+			f(fmt.Sprint(args[0]))
+		default:
+			ctx := make([]interface{}, 0, 2*(len(args)-1))
+			for idx, arg := range args[1:] {
+				ctx[2*idx] = "arg" + strconv.Itoa(idx)
+				ctx[2*idx+1] = arg
+			}
+			f(fmt.Sprint(args[0]), ctx...)
+		}
+	}
+}
 
 //Logger
 var (
@@ -26,6 +64,19 @@ var (
 	oldLog = AppLog.New("section", "deprecated")
 	// System logger
 	SysLog = AppLog.New("section", "system")
+
+	INFO = compatLogger{
+		println: toPrintln(RevelLog.Info),
+		printf:  RevelLog.Infof,
+	}
+	WARN = compatLogger{
+		println: toPrintln(RevelLog.Warn),
+		printf:  RevelLog.Warnf,
+	}
+	ERROR = compatLogger{
+		println: toPrintln(RevelLog.Error),
+		printf:  RevelLog.Errorf,
+	}
 )
 
 // Initialize the loggers first

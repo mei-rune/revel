@@ -8,14 +8,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/twinj/uuid"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/twinj/uuid"
 )
 
-const (
+var (
 	// The key for the identity of the session
 	SessionIDKey = "_ID"
 	// The expiration date of the session
