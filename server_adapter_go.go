@@ -4,14 +4,11 @@ import (
 	"net"
 	"net/http"
 	"time"
-
 	"io"
 	"mime/multipart"
 	"net/url"
 	"strconv"
 
-	"github.com/runner-mei/goutils/httputil"
-	"github.com/runner-mei/goutils/netutil"
 	"golang.org/x/net/websocket"
 )
 
@@ -50,6 +47,35 @@ func (g *GoHttpServer) Init(init *EngineInit) {
 	// Server already initialized
 }
 
+
+var ListenFunc = func(ei *EngineInit) (string, net.Listener, error)  {
+	ln, err := net.Listen(ei.Network, ei.Address)
+	return ei.Address, ln, err
+}
+
+
+// func init() {
+//  	revel.ListenFunc = func(ei *revel.EngineInit) (net.Listener, error)  {
+// 		var listener net.Listener
+// 		var err error
+
+// 		if netutil.IsUnixsocket(ei.Network) {
+// 			listener, err = netutil.NewUnixListener(ei.Network, ei.Address)
+// 		} else {
+// 			listener, err = net.Listen(ei.Network, ei.Address)
+// 		}
+
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		if ln, ok := listener.(*net.TCPListener); ok {
+// 			listener = httputil.TcpKeepAliveListener{ln}
+// 		}
+// 		return listener, nil
+// 	}
+// }
+
 // Handler is assigned in the Init
 func (g *GoHttpServer) Start() {
 	g.Server.Addr = g.ServerInit.Address
@@ -59,22 +85,11 @@ func (g *GoHttpServer) Start() {
 		serverLogger.Debugf("Start: Listening on %s...", g.Server.Addr)
 	}()
 
-	var listener net.Listener
-	var err error
-
-	if netutil.IsUnixsocket(g.ServerInit.Network) {
-		listener, err = netutil.NewUnixListener(g.ServerInit.Network, g.Server.Addr)
-	} else {
-		listener, err = net.Listen(g.ServerInit.Network, g.Server.Addr)
-	}
-
+	addr, listener, err := ListenFunc(g.ServerInit)
 	if err != nil {
 		serverLogger.Fatal("Failed to listen:", "error", err)
 	}
-
-	if ln, ok := listener.(*net.TCPListener); ok {
-		listener = httputil.TcpKeepAliveListener{ln}
-	}
+	g.Server.Addr = addr
 
 	if HTTPSsl {
 		serverLogger.Fatal("Failed to serve:", "error", g.Server.ServeTLS(listener, HTTPSslCert, HTTPSslKey))
