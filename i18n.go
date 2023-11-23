@@ -111,6 +111,11 @@ func parseLocale(locale string) (language, region string) {
 		return languageAndRegion[0], languageAndRegion[1]
 	}
 
+	if strings.Contains(locale, "_") {
+		languageAndRegion := strings.Split(locale, "_")
+		return languageAndRegion[0], languageAndRegion[1]
+	}
+
 	return locale, ""
 }
 

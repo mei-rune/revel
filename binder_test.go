@@ -107,7 +107,11 @@ var (
 		"rule.Attributes[corp_id]":          {"wx"},
 		"rule.Attributes[target_type]":      {"department"},
 		"rule.Attributes[userList][]":       {"15102171566"},
-		"rule.Attributes[departmentList][]": {"3"},
+		"rule.Attributes[departmentList][]": {"3", "4"},
+		"rule.Attributes[t][]":              {"5", "6"},
+
+		"appendixes[175].Attributes[asset_enabled]": {"false"},
+		"appendixes[175].Name":                      {"2"},
 
 		"cc.ID":                {"1"},
 		"cc.Values[]":          {"2", "3"},
@@ -184,8 +188,16 @@ var binderTestCases = map[string]interface{}{
 			"corp_id":        "wx",
 			"target_type":    "department",
 			"userList":       []string{"15102171566"},
-			"departmentList": []string{"3"},
+			"departmentList": []string{"3", "4"},
+			"t":              []string{"5", "6"},
 		}},
+
+	"appendixes": map[int64]*Rule{
+		175: &Rule{Name: "2",
+			Attributes: map[string]interface{}{
+				"asset_enabled": "false",
+			}},
+	},
 
 	"cc": C{
 		ID:              1,

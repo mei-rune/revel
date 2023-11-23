@@ -75,6 +75,7 @@ func (w *Watcher) Listen(listener Listener, roots ...string) {
 
 		fi, err := os.Stat(p)
 		if err != nil {
+			panic(p)
 			utilLog.Fatal("Watcher: Failed to stat watched path", "path", p, "error", err)
 			continue
 		}

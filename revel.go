@@ -325,6 +325,15 @@ func findSrcPaths(importPath string) (revelSourcePath, appSourcePath string, isG
 		RevelLog.Fatal("Failed to find Revel with error:", "error", err)
 	}
 
+ 	if _, err := os.Stat(revelPkg.SrcRoot); err != nil && os.IsNotExist(err) {
+ 		pa := filepath.ToSlash(revelPkg.Root)
+		pa = strings.TrimRight(pa, "/")
+
+
+		if strings.HasSuffix(pa, RevelImportPath) {
+			return strings.TrimSuffix(pa, RevelImportPath), srcRoot, isGoModule //
+		}
+ 	}
 	return revelPkg.SrcRoot, srcRoot, isGoModule //
 }
 
