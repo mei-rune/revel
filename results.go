@@ -440,7 +440,17 @@ type RedirectToURLResult struct {
 }
 
 func (r *RedirectToURLResult) Apply(req *Request, resp *Response) {
-	resp.Out.internalHeader.Set("Location", r.url)
+	u := r.url
+	if value := req.GetQuery().Get("no_layout"); value == "true" {
+		if !strings.Contains(u, "no_layout") {
+			if strings.Contains(u, "?") {
+				u = u + "&no_layout=true"
+			} else {
+				u = u + "?no_layout=true"
+			}
+		}
+	}
+	resp.Out.internalHeader.Set("Location", u)
 	resp.WriteHeader(http.StatusFound, "")
 }
 
@@ -456,6 +466,16 @@ func (r *RedirectToActionResult) Apply(req *Request, resp *Response) {
 		ErrorResult{Error: err}.Apply(req, resp)
 		return
 	}
+	if value := req.GetQuery().Get("no_layout"); value == "true" {
+		if !strings.Contains(url, "no_layout") {
+			if strings.Contains(url, "?") {
+				url = url + "&no_layout=true"
+			} else {
+				url = url + "?no_layout=true"
+			}
+		}
+	}
+
 	resp.Out.internalHeader.Set("Location", url)
 	resp.WriteHeader(http.StatusFound, "")
 }
