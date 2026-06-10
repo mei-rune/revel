@@ -96,7 +96,10 @@ func TerminalFormatHandler(noColor bool, smallDate bool) LogFormat {
 }
 func findInContext(key string, ctx []interface{}) string {
 	for i := 0; i < len(ctx); i += 2 {
-		k := ctx[i].(string)
+		k, ok := ctx[i].(string)
+		if !ok {
+			k = fmt.Sprint(k)
+		}
 		if key == k {
 			return formatLogfmtValue(ctx[i+1])
 		}
